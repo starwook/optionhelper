@@ -1,0 +1,14 @@
+# build
+build/
+.gradle/
+out/
+*.iml
+.idea/
+
+# secrets
+application-local.yml
+src/main/resources/application-local.yml
+.env
+*.pem
+
+.DS_Store
