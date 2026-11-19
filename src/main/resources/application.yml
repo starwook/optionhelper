@@ -1,0 +1,16 @@
+spring:
+  application:
+    name: optionhelper
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/optionhelper?serverTimezone=UTC&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+server:
+  port: 8080
