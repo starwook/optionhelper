@@ -6,7 +6,9 @@
 <title>옵션 복기</title>
 <style>
   /* index.html과 같은 색·카드 스타일 */
-  :root { --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1; --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; }
+  :root { --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1; --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; --call: #4ea8de; --put: #f0a04b; --raised: #262e3f; }
+  .call { color: var(--call); font-weight: 700; } .put { color: var(--put); font-weight: 700; }
+  td.strike { text-align: center; background: var(--raised); font-weight: 700; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
@@ -94,13 +96,14 @@ async function show(button) {
             <td class="${cls(p)}"><strong>${money(p)}</strong></td></tr>`;
         }).join('')}</tbody></table></div></div>
     <div class="card"><h2>그때 체인</h2><div class="scroll"><table>
-      <thead><tr><th>콜 매수</th><th>매도</th><th>중간</th><th style="text-align:center">행사가</th><th>풋 매수</th><th>매도</th><th>중간</th></tr></thead>
-      <tbody>${r.chain.map((c) => `<tr class="${c.atm ? 'atm' : ''}">${leg(c.call)}<td style="text-align:center"><strong>${c.strike}</strong></td>${leg(c.put)}</tr>`).join('')}</tbody>
+      <thead><tr><th>콜 매수</th><th>매도</th><th class="call">중간</th><th style="text-align:center">행사가</th><th class="put">중간</th><th>풋 매수</th><th>매도</th></tr></thead>
+      <tbody>${r.chain.map((c) => `<tr class="${c.atm ? 'atm' : ''}">${callLeg(c.call)}<td class="strike">${c.strike}</td>${putLeg(c.put)}</tr>`).join('')}</tbody>
     </table></div></div>`;
 }
 
 const stat = (label, value, sub) => `<div class="card stat"><h2>${label}</h2><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
-const leg = (l) => (l ? `<td>${n2(l.bid)}</td><td>${n2(l.ask)}</td><td>${n2(l.mid)}</td>` : '<td colspan="3" class="muted">–</td>');
+const callLeg = (l) => (l ? `<td class="muted">${n2(l.bid)}</td><td class="muted">${n2(l.ask)}</td><td class="call">${n2(l.mid)}</td>` : '<td colspan="3" class="muted">–</td>');
+const putLeg = (l) => (l ? `<td class="put">${n2(l.mid)}</td><td class="muted">${n2(l.bid)}</td><td class="muted">${n2(l.ask)}</td>` : '<td colspan="3" class="muted">–</td>');
 
 async function init() {
   const wl = await getJson('/api/watchlist');
