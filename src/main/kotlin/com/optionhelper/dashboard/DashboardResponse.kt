@@ -3,10 +3,14 @@ package com.optionhelper.dashboard
 import com.optionhelper.earnings.EarningsEvent
 import com.optionhelper.earnings.EarningsMoveStats
 import com.optionhelper.option.IvPoint
+import com.optionhelper.pricing.OptionType
 import com.optionhelper.seasonality.MonthStats
 import com.optionhelper.signal.StrategySignal
 import com.optionhelper.strategy.Breakeven
+import com.optionhelper.strategy.OptionLeg
 import com.optionhelper.strategy.PayoffPoint
+import com.optionhelper.strategy.Strategy
+import com.optionhelper.strategy.StrategyCalculator
 import com.optionhelper.volatility.ExpectedMove
 import com.optionhelper.volatility.RealizedVsExpected
 import java.time.Instant
@@ -89,7 +93,34 @@ data class StrategyView(
     val maxProfit: Double?,
     val maxLoss: Double?,
     val payoff: List<PayoffPoint>,
-)
+) {
+    companion object {
+        /** 전략 계산 결과를 화면용으로. 손익 곡선은 현재가 ± width(소수) 범위. */
+        fun of(
+            strategy: Strategy,
+            spot: Double,
+            width: Double,
+        ): StrategyView {
+            val result = StrategyCalculator.evaluate(strategy, spot)
+            return StrategyView(
+                kind = strategy.kind.name,
+                label = strategy.kind.label,
+                legs = strategy.legs.joinToString(" + ") { "${if (it.quantity > 0) "매수" else "매도"} ${legText(it)}" },
+                netPremium = result.netPremium,
+                feePerShare = result.feePerShare,
+                breakevens = result.breakevens,
+                breakevensWithFee = result.breakevensWithFee,
+                maxProfit = result.maxProfit,
+                maxLoss = result.maxLoss,
+                payoff = StrategyCalculator.payoffCurve(strategy, spot * (1 - width), spot * (1 + width)),
+            )
+        }
+
+        private fun legText(leg: OptionLeg) = "${num(leg.strike)}${if (leg.type == OptionType.CALL) "C" else "P"} @${num(leg.premium)}"
+
+        private fun num(value: Double) = if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(value)
+    }
+}
 
 data class EarningsView(
     val next: EarningsEvent?,

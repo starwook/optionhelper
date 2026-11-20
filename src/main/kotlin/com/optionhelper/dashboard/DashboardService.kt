@@ -13,8 +13,7 @@ import com.optionhelper.pricing.PricingProperties
 import com.optionhelper.seasonality.Seasonality
 import com.optionhelper.signal.SignalInput
 import com.optionhelper.signal.StrategySignals
-import com.optionhelper.strategy.Strategy
-import com.optionhelper.strategy.StrategyCalculator
+import com.optionhelper.strategy.StrategyMenu
 import com.optionhelper.volatility.ExpectedMove
 import com.optionhelper.volatility.RealizedVsExpected
 import com.optionhelper.volatility.VolatilityMetrics
@@ -229,58 +228,8 @@ class DashboardService(
         move: ExpectedMove?,
     ): List<StrategyView> {
         if (atm == null) return emptyList()
-
-        fun k(steps: Int) = chain.strikeAway(atm, steps)
-
-        fun mid(
-            type: OptionType,
-            strike: Double?,
-        ) = strike?.let { chain.quote(type, it)?.mid }
-
-        fun two(
-            k1: Double?,
-            t1: OptionType,
-            k2: Double?,
-            t2: OptionType,
-            make: (Double, Double, Double, Double) -> Strategy,
-        ): Strategy? {
-            val m1 = mid(t1, k1) ?: return null
-            val m2 = mid(t2, k2) ?: return null
-            return make(k1!!, m1, k2!!, m2)
-        }
-
-        val candidates =
-            listOfNotNull(
-                two(atm, OptionType.CALL, atm, OptionType.PUT) { k, c, _, p -> Strategy.longStraddle(k, c, p) },
-                two(k(-1), OptionType.PUT, k(1), OptionType.CALL, Strategy::longStrangle),
-                two(k(-2), OptionType.PUT, k(2), OptionType.CALL, Strategy::longStrangle),
-                k(-1)?.let { s -> mid(OptionType.PUT, s)?.let { Strategy.shortPut(s, it) } },
-                two(atm, OptionType.CALL, k(2), OptionType.CALL, Strategy::bullCallSpread),
-                two(atm, OptionType.PUT, k(-2), OptionType.PUT, Strategy::bearPutSpread),
-                two(k(-1), OptionType.PUT, k(-3), OptionType.PUT, Strategy::bullPutCreditSpread),
-                two(k(1), OptionType.CALL, k(3), OptionType.CALL, Strategy::bearCallCreditSpread),
-            )
         val width = maxOf(MIN_PAYOFF_WIDTH, PAYOFF_WIDTH_MULTIPLE * (move?.pct ?: 0.0))
-        return candidates.map { strategy ->
-            val result = StrategyCalculator.evaluate(strategy, spot)
-            StrategyView(
-                kind = strategy.kind.name,
-                label = strategy.kind.label,
-                legs =
-                    strategy.legs.joinToString(" + ") {
-                        "${if (it.quantity > 0) "매수" else "매도"} ${fmt(
-                            it.strike,
-                        )}${if (it.type == OptionType.CALL) "C" else "P"} @${fmt(it.premium)}"
-                    },
-                netPremium = result.netPremium,
-                feePerShare = result.feePerShare,
-                breakevens = result.breakevens,
-                breakevensWithFee = result.breakevensWithFee,
-                maxProfit = result.maxProfit,
-                maxLoss = result.maxLoss,
-                payoff = StrategyCalculator.payoffCurve(strategy, spot * (1 - width), spot * (1 + width)),
-            )
-        }
+        return StrategyMenu.build(chain, atm).map { StrategyView.of(it, spot, width) }
     }
 
     private fun <T> loadOrEmpty(
@@ -303,8 +252,6 @@ class DashboardService(
         zone: ZoneId,
         label: String,
     ) = instant.atZone(zone).format(TIME_FORMAT) + " $label"
-
-    private fun fmt(value: Double) = if (value % 1.0 == 0.0) value.toInt().toString() else "%.2f".format(value)
 
     companion object {
         private val CACHE_TTL: Duration = Duration.ofSeconds(5)

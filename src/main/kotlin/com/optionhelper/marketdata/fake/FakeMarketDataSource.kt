@@ -84,15 +84,19 @@ class FakeMarketDataSource(private val clock: Clock) : MarketDataSource {
     ): List<DailyBar> {
         val random = Random(symbol.hashCode())
         val yesterday = clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate().minusDays(1)
-        var close = basePrice(symbol) / 8
-        return generateSequence(from) { it.plusDays(1) }
-            .takeWhile { !it.isAfter(yesterday) }
-            .filter { it.dayOfWeek != DayOfWeek.SATURDAY && it.dayOfWeek != DayOfWeek.SUNDAY }
-            .map { date ->
-                val open = close
-                close *= exp(0.0008 + 0.025 * random.nextDouble(-1.7, 1.7))
-                DailyBar(date, open, maxOf(open, close) * 1.01, minOf(open, close) * 0.99, close)
-            }.toList()
+        var close = 1.0
+        val bars =
+            generateSequence(from) { it.plusDays(1) }
+                .takeWhile { !it.isAfter(yesterday) }
+                .filter { MarketClock.isTradingDay(it) }
+                .map { date ->
+                    val open = close
+                    close *= exp(0.0008 + 0.025 * random.nextDouble(-1.7, 1.7))
+                    DailyBar(date, open, maxOf(open, close) * 1.01, minOf(open, close) * 0.99, close)
+                }.toList()
+        // 마지막 종가가 가짜 현재가 근처가 되게 맞춘다(복기 결과가 현재가와 동떨어지지 않게)
+        val scale = basePrice(symbol) / (bars.lastOrNull()?.close ?: 1.0)
+        return bars.map { DailyBar(it.date, it.open * scale, it.high * scale, it.low * scale, it.close * scale) }
     }
 
     private fun basePrice(symbol: String) = 50.0 + abs(symbol.hashCode() % 250)
