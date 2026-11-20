@@ -4,4 +4,13 @@ spring:
     username: root
     password: change-me
 
-# 데이터 소스 키는 0단계(데이터 소스 확정) 후에 항목이 정해진다.
+optionhelper:
+  market-data:
+    source: alpaca
+    alpaca:
+      key-id: your-alpaca-key-id
+      secret-key: your-alpaca-secret-key
+  earnings:
+    source: alphavantage
+    alpha-vantage:
+      api-key: your-alpha-vantage-key

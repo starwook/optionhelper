@@ -1,0 +1,54 @@
+package com.optionhelper.marketdata
+
+import com.optionhelper.option.OptionChain
+import java.time.Instant
+import java.time.LocalDate
+
+/**
+ * 시세 데이터 소스. 구현체(가짜, Alpaca, 나중에 IBKR)를 바꿔 끼워도 나머지 코드는 그대로다.
+ * 설정 `optionhelper.market-data.source` 값으로 하나만 빈으로 뜬다.
+ */
+interface MarketDataSource {
+    val feed: DataFeed
+
+    fun stockQuote(symbol: String): StockQuote
+
+    /** 오늘 이후 만기 목록(0DTE 포함), 오름차순. */
+    fun expirations(
+        symbol: String,
+        spot: Double,
+    ): List<LocalDate>
+
+    /** 한 만기의 체인. 행사가는 [minStrike, maxStrike] 범위만. */
+    fun chain(
+        symbol: String,
+        expiry: LocalDate,
+        minStrike: Double,
+        maxStrike: Double,
+    ): OptionChain
+
+    /** from부터 어제까지의 일봉(분할·배당 조정), 오래된 순. */
+    fun dailyBars(
+        symbol: String,
+        from: LocalDate,
+    ): List<DailyBar>
+}
+
+data class StockQuote(
+    val symbol: String,
+    val price: Double,
+    // 오늘 시가. 장 시작 전이면 null일 수 있다.
+    val open: Double?,
+    val previousClose: Double?,
+    val asOf: Instant,
+)
+
+enum class FeedKind(val label: String) {
+    REALTIME("실시간"),
+    INDICATIVE("실시간 가공 호가"),
+    DELAYED("지연"),
+    SIMULATED("가짜 데이터"),
+}
+
+/** 화면에 항상 보여 줄 데이터 출처와 성격. */
+data class DataFeed(val name: String, val kind: FeedKind, val note: String)

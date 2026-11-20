@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>옵션 판단 대시보드</title>
+<style>
+  /* ── 색·기본 ── */
+  :root {
+    --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1;
+    --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; --warn: #f5b942;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+  main { padding: 12px 16px; display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .up { color: var(--up); } .down { color: var(--down); } .warn { color: var(--warn); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ── 상단 바 ── */
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header select, header input, header button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 14px; }
+  header input { width: 90px; text-transform: uppercase; }
+  .badge { padding: 3px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
+  .badge.live { color: var(--up); border-color: var(--up); }
+  .badge.closed { color: var(--muted); }
+  .badge.alert { color: var(--warn); border-color: var(--warn); }
+  .spacer { flex: 1; }
+
+  /* ── 큰 숫자 카드 ── */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+  .stat .value { font-size: 28px; font-weight: 700; }
+  .stat .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ── 2단 레이아웃 ── */
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 900px) { .row { grid-template-columns: 1fr; } }
+
+  /* ── 표 ── */
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  td.left, th.left { text-align: left; }
+  tr.atm td { background: #22324a; }
+  td.strike { text-align: center; font-weight: 700; }
+  tbody tr.pick { cursor: pointer; }
+  tbody tr.selected td { background: #2b2540; }
+  .scroll { overflow-x: auto; }
+
+  /* ── 판단 패널 ── */
+  .signal { padding: 6px 8px; border-left: 3px solid var(--accent); margin-bottom: 6px; background: #1d2230; }
+  .warning { padding: 4px 8px; border-left: 3px solid var(--warn); margin-bottom: 4px; font-size: 12px; }
+  .bar { height: 10px; background: var(--line); border-radius: 5px; position: relative; overflow: hidden; }
+  .bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); }
+
+  /* ── 히트맵 ── */
+  .heat td { text-align: center; font-size: 12px; }
+  .heat td.now { outline: 2px solid var(--accent); }
+
+  svg text { fill: var(--muted); font-size: 11px; }
+  footer { padding: 8px 16px 16px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <strong>옵션 판단</strong>
+  <select id="watchlist" aria-label="관심 종목"></select>
+  <input id="symbol" aria-label="종목 입력" placeholder="종목">
+  <select id="expiry" aria-label="만기"></select>
+  <span id="feedBadge" class="badge"></span>
+  <span id="marketBadge" class="badge"></span>
+  <span id="staleBadge" class="badge alert" hidden>연결 오류: 마지막 값 표시 중</span>
+  <span class="spacer"></span>
+  <span id="asOf" class="muted num"></span>
+</header>
+
+<main>
+  <section class="stats" id="stats"></section>
+
+  <section class="row">
+    <div class="card">
+      <h2>판단 패널 <span class="muted">(교과서식 참고 지표, 투자 조언 아님)</span></h2>
+      <div id="signals"></div>
+      <div id="realized" style="margin:10px 0"></div>
+      <div id="earnings"></div>
+      <div id="warnings" style="margin-top:8px"></div>
+    </div>
+    <div class="card">
+      <h2>ATM IV 추이 <span class="muted">(오늘 · 서버 기록 + 페이지 켜둔 동안)</span></h2>
+      <div id="ivChart"></div>
+      <div id="volDetail" class="muted" style="margin-top:6px"></div>
+    </div>
+  </section>
+
+  <section class="row">
+    <div class="card">
+      <h2>콜 · 풋 체인 <span class="muted">(ATM 강조 · IV는 API / 직접 계산)</span></h2>
+      <div class="scroll"><table id="chain"></table></div>
+    </div>
+    <div class="card">
+      <h2>전략 비교 <span class="muted">(1계약 기준 · 토스 수수료 왕복 반영 · 행을 누르면 손익 곡선)</span></h2>
+      <div class="scroll"><table id="strategies"></table></div>
+      <div id="payoff" style="margin-top:8px"></div>
+    </div>
+  </section>
+
+  <section class="row">
+    <div class="card">
+      <h2>월별 계절성 <span class="muted">(일봉 기준 월 수익률 · 이번 달 강조)</span></h2>
+      <div class="scroll"><table class="heat" id="season"></table></div>
+    </div>
+    <div class="card">
+      <h2>과거 실적 반응 <span class="muted">(발표 직전 종가 → 반응일 종가)</span></h2>
+      <div class="scroll"><table id="reactions"></table></div>
+    </div>
+  </section>
+</main>
+
+<footer id="footer"></footer>
+
+<script>
+// ── 상태 ──
+const POLL_MS = 10000;
+const state = { symbol: 'NVDA', expiry: null, strategy: 'LONG_STRADDLE', ivTrail: [], lastData: null };
+
+// ── 포맷 ──
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n2 = (v) => (v == null ? '–' : Number(v).toFixed(2));
+const pct = (v, d = 1) => (v == null ? '–' : (v * 100).toFixed(d) + '%');
+const signed = (v, d = 1) => (v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
+const usd = (v) => (v == null ? '무한' : '$' + Math.round(v * 100).toLocaleString());
+const cls = (v) => (v == null ? '' : v >= 0 ? 'up' : 'down');
+
+// ── 데이터 ──
+async function load() {
+  const q = new URLSearchParams({ symbol: state.symbol });
+  if (state.expiry) q.set('expiry', state.expiry);
+  try {
+    const res = await fetch('/api/dashboard?' + q);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.status);
+    render(data);
+  } catch (e) {
+    $('staleBadge').hidden = false;
+    $('staleBadge').textContent = '연결 오류: ' + e.message;
+  }
+}
+
+function render(d) {
+  if (state.lastData?.symbol !== d.symbol || state.lastData?.expiry !== d.expiry) state.ivTrail = [];
+  state.lastData = d;
+  state.expiry = d.expiry;
+  const iv = d.volatility.atmIvCalc ?? d.volatility.atmIvApi;
+  if (iv != null && d.marketOpen) state.ivTrail.push({ time: d.asOf, iv });
+
+  renderHeader(d);
+  renderStats(d);
+  renderSignals(d);
+  renderIvChart(d);
+  renderChain(d);
+  renderStrategies(d);
+  renderSeasonality(d);
+  renderReactions(d);
+  $('footer').textContent = `데이터: ${d.feed.name} — ${d.feed.note} · 실적: ${d.earningsSource} · 만기는 미국 동부 16:00, IV 시간은 실거래시간(연 252일×6.5시간) 기준 · 조회 전용(주문 기능 없음)`;
+}
+
+function renderHeader(d) {
+  const sel = $('expiry');
+  sel.innerHTML = d.expirations.map((e) => `<option value="${e}" ${e === d.expiry ? 'selected' : ''}>${e}</option>`).join('');
+  $('feedBadge').textContent = d.feed.label;
+  $('feedBadge').className = 'badge ' + (d.feed.kind === 'REALTIME' ? 'live' : 'alert');
+  $('marketBadge').textContent = d.marketOpen ? '장중' : '장 마감';
+  $('marketBadge').className = 'badge ' + (d.marketOpen ? 'live' : 'closed');
+  $('staleBadge').hidden = !d.stale;
+  if (d.stale) $('staleBadge').textContent = '연결 오류: 마지막 값 표시 중 (' + (d.error || '') + ')';
+  $('asOf').textContent = `${d.asOfEt} · ${d.asOfKst}`;
+}
+
+function renderStats(d) {
+  const m = d.expectedMove;
+  const v = d.volatility;
+  const fromOpen = d.open ? d.spot / d.open - 1 : null;
+  const cards = [
+    ['현재가', '$' + n2(d.spot), `시가 대비 <span class="${cls(fromOpen)}">${signed(fromOpen, 2)}</span>`],
+    ['만기까지', d.hoursToExpiry.toFixed(1) + 'h', `${esc(d.expiryEt)}<br>${esc(d.expiryKst)}`],
+    ['스트래들', d.straddle == null ? '–' : '$' + n2(d.straddle), d.atm ? `ATM ${d.atm.strike} · 1세트 ${usd(d.straddle)}` : ''],
+    ['예상 변동폭', m ? '±' + pct(m.pct, 2) : '–', m ? `±$${n2(m.dollars)} · 85% 규칙 ±${pct(m.rule85Pct, 2)}` : ''],
+    ['ATM IV', pct(v.atmIvCalc), `직접 계산 · API ${pct(v.atmIvApi)}`],
+    ['IV / HV(20일)', v.ivHvRatio == null ? '–' : v.ivHvRatio.toFixed(2), `HV ${pct(v.hv20)} · 1보다 크면 옵션이 비쌈`],
+    ['IV 퍼센타일', pct(v.ivPercentile, 0), `기록 ${v.ivSamples}개 기준`],
+  ];
+  $('stats').innerHTML = cards.map(([label, value, sub]) =>
+    `<div class="card stat"><h2>${label}</h2><div class="value num">${value}</div><div class="sub">${sub}</div></div>`).join('');
+}
+
+function renderSignals(d) {
+  $('signals').innerHTML = d.signals.length
+    ? d.signals.map((s) => `<div class="signal"><strong>${esc(zoneLabel(s.zone))}</strong><br><span class="muted">${esc(s.reason)}</span></div>`).join('')
+    : '<div class="muted">지금은 뚜렷한 구간 신호가 없습니다(IV/HV 0.9~1.3 사이).</div>';
+
+  const r = d.realizedVsExpected;
+  $('realized').innerHTML = r
+    ? `<div>실현 vs 예상: 시가 대비 <span class="${cls(r.realizedPct)}">${signed(r.realizedPct, 2)}</span> / 예상 ±${pct(r.expectedPct, 2)} → 예상의 <strong>${Math.round(r.ratio * 100)}%</strong> 소화</div>
+       <div class="bar" style="margin-top:4px"><span style="width:${Math.min(100, r.ratio * 100)}%"></span></div>`
+    : '<div class="muted">실현 vs 예상: 시가 정보 없음</div>';
+
+  const e = d.earnings;
+  const stats = e.stats ? `과거 ${e.stats.count}번 평균 ±${pct(e.stats.averageAbsMove)} · 최대 ±${pct(e.stats.maxAbsMove)}` : '과거 실적 반응 데이터 없음';
+  const vsPast = e.stats && d.expectedMove ? ` · 지금 예상 ±${pct(d.expectedMove.pct)}` : '';
+  $('earnings').innerHTML = e.next
+    ? `<div>다음 실적: <strong>${e.next.date}</strong> (${timingLabel(e.next.timing)}) · D-${e.daysUntil} ${e.beforeExpiry ? '<span class="badge alert">이 만기 안에 반응</span>' : ''}</div><div class="muted">${stats}${vsPast}</div>`
+    : `<div class="muted">다음 실적 일정 없음 · ${stats}</div>`;
+
+  $('warnings').innerHTML = d.warnings.map((w) => `<div class="warning">${esc(w)}</div>`).join('');
+}
+
+function renderIvChart(d) {
+  const server = d.ivHistory.map((p) => ({ time: p.time, iv: p.iv }));
+  const lastServer = server.length ? server[server.length - 1].time : '';
+  const points = server.concat(state.ivTrail.filter((p) => p.time > lastServer));
+  $('ivChart').innerHTML = points.length < 2
+    ? '<div class="muted">기록이 쌓이면 여기에 추이가 그려집니다.</div>'
+    : lineChart(points.map((p) => [new Date(p.time).getTime(), p.iv * 100]), { height: 140, yLabel: (y) => y.toFixed(1) + '%' });
+  const v = d.volatility;
+  const term = v.termStructureRatio == null ? '–' : `${v.termStructureRatio.toFixed(2)} (다음 만기 ${v.nextExpiry} IV ${pct(v.nextExpiryIv)}${v.termStructureRatio > 1 ? ', 단기 이벤트 프리미엄' : ''})`;
+  $('volDetail').innerHTML = `기간 구조(이번/다음 만기 IV): ${term}<br>스큐(2칸 OTM 풋 IV − 콜 IV): ${v.skew == null ? '–' : (v.skew * 100).toFixed(1) + '%p'}`;
+}
+
+function renderChain(d) {
+  const leg = (l) => (l ? `<td>${n2(l.bid)}</td><td>${n2(l.ask)}</td><td><strong>${n2(l.mid)}</strong></td><td>${pct(l.ivApi)}/${pct(l.ivCalc)}</td><td>${n2(l.delta)}</td>` : '<td colspan="5" class="muted">–</td>');
+  $('chain').innerHTML =
+    `<thead><tr><th colspan="5" class="left">콜</th><th></th><th colspan="5" class="left">풋</th></tr>
+     <tr><th>매수</th><th>매도</th><th>중간</th><th>IV</th><th>델타</th><th style="text-align:center">행사가</th><th>매수</th><th>매도</th><th>중간</th><th>IV</th><th>델타</th></tr></thead>
+     <tbody>${d.chain.map((r) => `<tr class="${r.atm ? 'atm' : ''}">${leg(r.call)}<td class="strike">${r.strike}</td>${leg(r.put)}</tr>`).join('')}</tbody>`;
+}
+
+function renderStrategies(d) {
+  const key = (s) => s.kind + '|' + s.legs;
+  if (!d.strategies.some((s) => key(s) === state.strategy)) state.strategy = d.strategies[0] ? key(d.strategies[0]) : null;
+  const be = (list) => list.map((b) => `${n2(b.price)} <span class="muted">(${signed(b.movePct)})</span>`).join('<br>');
+  $('strategies').innerHTML =
+    `<thead><tr><th class="left">전략</th><th>비용(1계약)</th><th>본전(수수료 포함)</th><th>최대 이익</th><th>최대 손실</th></tr></thead>
+     <tbody>${d.strategies.map((s) => `<tr class="pick ${key(s) === state.strategy ? 'selected' : ''}" data-key="${esc(key(s))}">
+       <td class="left"><strong>${esc(s.label)}</strong><br><span class="muted">${esc(s.legs)}</span></td>
+       <td class="${s.netPremium < 0 ? 'up' : ''}">${s.netPremium < 0 ? '받음 ' : ''}${usd(Math.abs(s.netPremium))}</td>
+       <td>${be(s.breakevensWithFee)}</td><td>${usd(s.maxProfit)}</td><td>${usd(s.maxLoss)}</td></tr>`).join('')}</tbody>`;
+  $('strategies').querySelectorAll('tr.pick').forEach((tr) => tr.addEventListener('click', () => { state.strategy = tr.dataset.key; renderStrategies(state.lastData); }));
+
+  const s = d.strategies.find((x) => key(x) === state.strategy);
+  $('payoff').innerHTML = s
+    ? lineChart(s.payoff.map((p) => [p.price, (p.profit - s.feePerShare) * 100]), { height: 160, zero: true, markX: d.spot, xLabel: (x) => '$' + x.toFixed(0), yLabel: (y) => '$' + y.toFixed(0) })
+    : '';
+}
+
+function renderSeasonality(d) {
+  if (!d.seasonality.length) { $('season').innerHTML = '<tr><td class="muted">일봉 데이터 없음</td></tr>'; return; }
+  const byMonth = Object.fromEntries(d.seasonality.map((m) => [monthNo(m.month), m]));
+  const years = [...new Set(d.seasonality.flatMap((m) => Object.keys(m.byYear)))].sort().reverse().slice(0, 8);
+  const cell = (v, month) => `<td class="${month === d.currentMonth ? 'now' : ''}" style="background:${heat(v)}">${v == null ? '' : signed(v, 0)}</td>`;
+  const months = Array.from({ length: 12 }, (_, i) => i + 1);
+  $('season').innerHTML =
+    `<thead><tr><th></th>${months.map((m) => `<th style="text-align:center">${m}월</th>`).join('')}</tr></thead><tbody>
+     <tr><td class="left">평균</td>${months.map((m) => cell(byMonth[m]?.average, m)).join('')}</tr>
+     <tr><td class="left">상승 확률</td>${months.map((m) => `<td class="${m === d.currentMonth ? 'now' : ''}">${byMonth[m] ? pct(byMonth[m].upRatio, 0) : ''}</td>`).join('')}</tr>
+     ${years.map((y) => `<tr><td class="left muted">${y}</td>${months.map((m) => cell(byMonth[m]?.byYear[y], m)).join('')}</tr>`).join('')}</tbody>`;
+}
+
+function renderReactions(d) {
+  const st = d.earnings.stats;
+  $('reactions').innerHTML = st
+    ? `<thead><tr><th class="left">발표일</th><th class="left">시점</th><th>반응</th></tr></thead><tbody>
+       ${st.reactions.slice().reverse().map((r) => `<tr><td class="left">${r.event.date}</td><td class="left">${timingLabel(r.event.timing)}</td><td class="${cls(r.movePct)}">${signed(r.movePct)}</td></tr>`).join('')}</tbody>`
+    : '<tr><td class="muted">데이터 없음</td></tr>';
+}
+
+// ── SVG 선 그래프(외부 라이브러리 없이) ──
+function lineChart(points, { height, zero = false, markX = null, xLabel = null, yLabel }) {
+  const w = 600, h = height, pad = 36;
+  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+  let y0 = Math.min(...ys), y1 = Math.max(...ys);
+  if (zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
+  if (y0 === y1) { y0 -= 1; y1 += 1; }
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  const X = (x) => pad + ((x - x0) / (x1 - x0 || 1)) * (w - pad - 8);
+  const Y = (y) => 8 + (1 - (y - y0) / (y1 - y0)) * (h - 28);
+  const path = points.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
+  const zeroLine = zero ? `<line x1="${pad}" x2="${w - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="#444"/>` : '';
+  const mark = markX != null ? `<line x1="${X(markX)}" x2="${X(markX)}" y1="8" y2="${h - 20}" stroke="#5aa9ff" stroke-dasharray="3 3"/>` : '';
+  const xl = xLabel ? `<text x="${pad}" y="${h - 4}">${xLabel(x0)}</text><text x="${w - 8}" y="${h - 4}" text-anchor="end">${xLabel(x1)}</text>` : '';
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">
+    ${zeroLine}${mark}
+    <path d="${path}" fill="none" stroke="#3ecf8e" stroke-width="2"/>
+    <text x="2" y="14">${yLabel(y1)}</text><text x="2" y="${h - 22}">${yLabel(y0)}</text>${xl}</svg>`;
+}
+
+// ── 라벨·색 ──
+const ZONES = { PREMIUM_SELLING: '프리미엄 매도형(숏 풋, 크레딧 스프레드) 구간', PREMIUM_BUYING: '프리미엄 매수형(롱 스트래들·스트랭글) 구간', EARNINGS_LONG_VOL: '실적 앞 롱 변동성 구간', EARNINGS_OVERPRICED: '실적 프리미엄 과열(매도형) 구간' };
+const zoneLabel = (z) => ZONES[z] || z;
+const timingLabel = (t) => ({ BEFORE_OPEN: '장 전', AFTER_CLOSE: '장 후', UNKNOWN: '시점 미상' }[t] || t);
+const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];
+const monthNo = (name) => MONTHS.indexOf(name) + 1;
+function heat(v) {
+  if (v == null) return 'transparent';
+  const a = Math.min(1, Math.abs(v) / 0.15) * 0.6;
+  return v >= 0 ? `rgba(62,207,142,${a})` : `rgba(255,107,107,${a})`;
+}
+
+// ── 입력 ──
+async function init() {
+  const wl = await fetch('/api/watchlist').then((r) => r.json());
+  state.symbol = wl.default;
+  $('watchlist').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
+  $('watchlist').addEventListener('change', (e) => setSymbol(e.target.value));
+  $('symbol').addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.value.trim()) setSymbol(e.target.value.trim().toUpperCase()); });
+  $('expiry').addEventListener('change', (e) => { state.expiry = e.target.value; load(); });
+  load();
+  setInterval(load, POLL_MS);
+}
+function setSymbol(symbol) { state.symbol = symbol; state.expiry = null; $('symbol').value = ''; load(); }
+init();
+</script>
+</body>
+</html>

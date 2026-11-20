@@ -11,13 +11,16 @@ enum class EarningsTiming {
 
     // 장 마감 후 발표: 다음 거래일 장에서 반응
     AFTER_CLOSE,
+
+    // 데이터 소스가 시점을 주지 않음: 전날 종가 → 다음 날 종가(이틀치)로 보수적으로 본다
+    UNKNOWN,
 }
 
 data class EarningsEvent(val symbol: String, val date: LocalDate, val timing: EarningsTiming) {
-    /** 만기(16:00 ET)까지 이 실적의 주가 반응이 들어오는가. */
+    /** 만기(16:00 ET)까지 이 실적의 주가 반응이 들어오는가. 시점을 모르면 만기 당일 발표도 들어온다고 보고 경고한다. */
     fun reactsBy(expiry: LocalDate): Boolean =
         when (timing) {
-            EarningsTiming.BEFORE_OPEN -> !date.isAfter(expiry)
+            EarningsTiming.BEFORE_OPEN, EarningsTiming.UNKNOWN -> !date.isAfter(expiry)
             EarningsTiming.AFTER_CLOSE -> date.isBefore(expiry)
         }
 }
@@ -58,6 +61,7 @@ object Earnings {
                 when (event.timing) {
                     EarningsTiming.BEFORE_OPEN -> dayIndex - 1 to dayIndex
                     EarningsTiming.AFTER_CLOSE -> dayIndex to dayIndex + 1
+                    EarningsTiming.UNKNOWN -> dayIndex - 1 to dayIndex + 1
                 }
             val before = sorted.getOrNull(beforeIndex) ?: return@mapNotNull null
             val reaction = sorted.getOrNull(reactionIndex) ?: return@mapNotNull null
