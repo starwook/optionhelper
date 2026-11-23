@@ -184,7 +184,7 @@ async function runOpenEstimate(e) {
       <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} ·
         프리마켓 $${n2(v.premarket)} <span class="${o.gap >= 0 ? 'up' : 'down'}">${signedPct(o.gap)}</span> (전일 종가 $${n2(v.previousClose)}, ${esc(v.spotSource)}${v.spotAsOf ? ' · 체결 ' + timeIn(v.spotAsOf, 'America/New_York') + ' ET' : ''}) ·
         전일 IV ${pct(o.impliedVol)} · 델타 ${n2(o.delta)} · 주가 $1당 델타 +${n2(o.gamma)}</p>
-      <p class="muted">기준 시각: ${timeIn(o.basisAt, 'America/New_York')} ET (${timeIn(o.basisAt, 'Asia/Seoul')} KST) 개장</p>
+      <p class="muted">기준 시각: ${timeIn(o.basisAt, 'America/New_York')} ET (${timeIn(o.basisAt, 'Asia/Seoul')} KST) ${timeIn(o.basisAt, 'America/New_York').endsWith('09:30') ? '개장' : '· 장중이라 지금 기준'}</p>
       <div class="scroll"><table>
         <thead><tr><th class="left">개장 때 주가</th><th>주가</th><th>내재가치</th>${o.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
         <tbody>${o.rows.map(row).join('')}</tbody>
