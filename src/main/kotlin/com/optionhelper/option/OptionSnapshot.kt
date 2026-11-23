@@ -48,6 +48,16 @@ interface OptionSnapshotRepository : JpaRepository<OptionSnapshot, Long> {
         since: Instant,
     ): List<Double>
 
+    /** 체인 JSON 없이 시각·ATM IV만(1년치를 읽어도 가볍게). */
+    @Query(
+        "select new com.optionhelper.option.IvPoint(s.capturedAt, s.atmIv) from OptionSnapshot s " +
+            "where s.symbol = :symbol and s.capturedAt >= :since and s.atmIv is not null order by s.capturedAt",
+    )
+    fun findIvPoints(
+        symbol: String,
+        since: Instant,
+    ): List<IvPoint>
+
     fun findBySymbolAndCapturedAtGreaterThanEqualOrderByCapturedAt(
         symbol: String,
         since: Instant,

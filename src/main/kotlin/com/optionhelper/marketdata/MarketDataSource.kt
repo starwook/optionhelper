@@ -32,6 +32,15 @@ interface MarketDataSource {
         symbol: String,
         from: LocalDate,
     ): List<DailyBar>
+
+    /**
+     * from부터 어제까지 기초자산의 일별 30일 IV, 오래된 순. IV 히스토리(IV Rank·퍼센타일)에 쓴다.
+     * IBKR은 `OPTION_IMPLIED_VOLATILITY` 일봉으로 구현한다. 과거 IV를 주지 않는 소스는 빈 목록(그러면 앱이 쌓은 스냅샷으로 대신한다).
+     */
+    fun dailyImpliedVolatility(
+        symbol: String,
+        from: LocalDate,
+    ): List<DailyIv> = emptyList()
 }
 
 data class StockQuote(

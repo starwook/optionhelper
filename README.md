@@ -59,6 +59,15 @@
 
 날짜를 고르면 그날 장중 1분마다 저장된 시각 목록이 나온다. 시각을 누르면 그때의 주가·스트래들·예상 변동폭·체인을 다시 보여 주고, 그때 각 전략을 1계약씩 샀다면 만기(지났으면 만기일 종가, 아니면 지금 가격)에 얼마였는지(토스 수수료 왕복 포함)와 "실제 변동 ÷ 예상 변동폭"을 보여 준다. 기록은 `optionhelper.recorder.symbols` 종목만, 앱을 켜 둔 장중에만 쌓인다.
 
+## IV 히스토리 화면 (`/iv.html`, 상단 "IV 히스토리" 링크)
+
+- **지금 IV가 1년 중 어디쯤인가**: IV Rank(1년 최저 0% ~ 최고 100% 중 위치), 퍼센타일(1년 중 지금보다 낮았던 날 비율), 1년 범위·중앙값
+- **실제 변동보다 비싼가**: IV ÷ HV20, 1년 IV와 HV20 선 그래프
+- **보유 옵션 시나리오**: 종류·행사가·만기·옵션 가격(토스에서 보는 값)·주가를 넣으면 IV·델타·하루 세타·베가와, 주가가 그대로일 때 날짜별(1주 간격, 만기 전날, 만기) × IV별(지금 / 종목 IV가 1년 중앙값·최저로 돌아갈 때 / ±10%p) 가격 표
+- **관심 종목 비교**: 반도체 10종목의 IV·Rank·퍼센타일·IV÷HV
+
+IV 기록은 데이터 소스가 과거 30일 IV를 주면(IBKR `OPTION_IMPLIED_VOLATILITY` 일봉) 그걸 `daily_iv` 테이블에 쌓아 쓰고(한 번 받은 날짜는 다시 안 받음), 안 주면(Alpaca) 앱이 장중에 쌓은 스냅샷의 하루 마지막 ATM IV로 대신한다. 어느 쪽인지 화면에 표시된다. API: `/api/iv/history?symbol=`, `/api/iv/summary`, `/api/scenario?symbol=&type=CALL&strike=&expiry=&price=&spot=`.
+
 ## 구조
 
-도메인 기준 패키지: `pricing`(블랙-숄즈·IV·만기 시계), `option`(체인·스냅샷), `strategy`(전략 손익·수수료), `volatility`, `signal`, `earnings`, `seasonality`, `marketdata`(데이터 소스 인터페이스와 구현), `watchlist`, `dashboard`(화면 조립·API·스냅샷 기록). 화면은 `src/main/resources/static/index.html` 한 파일.
+도메인 기준 패키지: `pricing`(블랙-숄즈·IV·만기 시계), `option`(체인·스냅샷), `strategy`(전략 손익·수수료), `volatility`, `signal`, `earnings`, `seasonality`, `marketdata`(데이터 소스 인터페이스와 구현), `scenario`(보유 옵션 시나리오), `watchlist`, `dashboard`(화면 조립·API·스냅샷 기록). 화면은 `src/main/resources/static/`의 `index.html`(실시간), `iv.html`(IV 히스토리), `review.html`(복기).

@@ -1,6 +1,7 @@
 package com.optionhelper.marketdata.fake
 
 import com.optionhelper.marketdata.DailyBar
+import com.optionhelper.marketdata.DailyIv
 import com.optionhelper.marketdata.DataFeed
 import com.optionhelper.marketdata.FeedKind
 import com.optionhelper.marketdata.MarketDataSource
@@ -97,6 +98,22 @@ class FakeMarketDataSource(private val clock: Clock) : MarketDataSource {
         // 마지막 종가가 가짜 현재가 근처가 되게 맞춘다(복기 결과가 현재가와 동떨어지지 않게)
         val scale = basePrice(symbol) / (bars.lastOrNull()?.close ?: 1.0)
         return bars.map { DailyBar(it.date, it.open * scale, it.high * scale, it.low * scale, it.close * scale) }
+    }
+
+    /** 날짜로 정해지는 출렁이는 IV(같은 날짜는 항상 같은 값이라 DB에 나눠 쌓여도 이어진다). */
+    override fun dailyImpliedVolatility(
+        symbol: String,
+        from: LocalDate,
+    ): List<DailyIv> {
+        val yesterday = clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate().minusDays(1)
+        val phase = abs(symbol.hashCode() % 100).toDouble()
+        return generateSequence(from) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(yesterday) }
+            .filter { MarketClock.isTradingDay(it) }
+            .map { date ->
+                val day = date.toEpochDay().toDouble()
+                DailyIv(date, 0.5 + 0.12 * sin(day / 37.0 + phase) + 0.05 * sin(day / 9.0))
+            }.toList()
     }
 
     private fun basePrice(symbol: String) = 50.0 + abs(symbol.hashCode() % 250)

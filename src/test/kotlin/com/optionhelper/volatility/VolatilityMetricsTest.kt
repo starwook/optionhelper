@@ -42,3 +42,21 @@ class VolatilityMetricsTest {
         assertThat(VolatilityMetrics.ivPercentile(emptyList(), 0.55)).isNull()
     }
 }
+
+class IvRangeTest {
+    @Test
+    fun `IV Rank - 1년 최저 0_3, 최고 0_7이면 0_5는 50%`() {
+        val range = IvRange.of(listOf(0.3, 0.7, 0.5, 0.4))!!
+        assertThat(range.min).isEqualTo(0.3)
+        assertThat(range.max).isEqualTo(0.7)
+        assertThat(range.median).isCloseTo(0.45, within(1e-9))
+        assertThat(range.rank(0.5)).isCloseTo(0.5, within(1e-9))
+        assertThat(range.rank(0.9)).isEqualTo(1.0)
+    }
+
+    @Test
+    fun `기록이 없거나 값이 하나뿐이면 Rank 없음`() {
+        assertThat(IvRange.of(emptyList())).isNull()
+        assertThat(IvRange.of(listOf(0.4))!!.rank(0.4)).isNull()
+    }
+}

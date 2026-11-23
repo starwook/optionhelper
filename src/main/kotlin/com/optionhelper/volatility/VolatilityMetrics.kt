@@ -45,6 +45,27 @@ data class RealizedVsExpected(
     }
 }
 
+/** 한 기간(보통 1년)의 IV 범위. 지금 IV가 그 안에서 어디쯤인지(IV Rank) 판단하는 규칙을 갖는다. */
+data class IvRange(
+    val min: Double,
+    val max: Double,
+    val median: Double,
+    val samples: Int,
+) {
+    /** (지금 − 최저) ÷ (최고 − 최저), 0~1. 1년 내내 같은 값이었으면 null. */
+    fun rank(current: Double): Double? = if (max > min) ((current - min) / (max - min)).coerceIn(0.0, 1.0) else null
+
+    companion object {
+        fun of(values: List<Double>): IvRange? {
+            if (values.isEmpty()) return null
+            val sorted = values.sorted()
+            val mid = sorted.size / 2
+            val median = if (sorted.size % 2 == 1) sorted[mid] else (sorted[mid - 1] + sorted[mid]) / 2
+            return IvRange(sorted.first(), sorted.last(), median, sorted.size)
+        }
+    }
+}
+
 object VolatilityMetrics {
     const val HV_WINDOW = 20
     private const val TRADING_DAYS_PER_YEAR = 252.0

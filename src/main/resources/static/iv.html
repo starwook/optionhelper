@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IV 히스토리</title>
+<style>
+  /* review.html과 같은 색·카드 스타일 */
+  :root { --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1; --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; --hv: #f0a04b; --raised: #262e3f; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  select, input, button { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font: inherit; }
+  button { cursor: pointer; background: var(--raised); }
+  a { color: var(--accent); }
+  main { padding: 12px 16px; display: grid; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .muted { color: var(--muted); } .up { color: var(--up); } .down { color: var(--down); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .stat .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .sub { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .left { text-align: left; }
+  .scroll { overflow-x: auto; }
+  #summary tbody tr { cursor: pointer; }
+  #summary tbody tr.selected { background: var(--raised); }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; }
+  .chart svg text { font-size: 12px; fill: var(--muted); }
+  form { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; margin-bottom: 10px; }
+  form label { display: grid; gap: 2px; font-size: 12px; color: var(--muted); }
+  form input { width: 110px; }
+  ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>IV 히스토리</strong>
+  <select id="symbol" aria-label="종목"></select>
+  <span class="muted">지금 IV가 지난 1년 중 어디쯤인지, 실제 변동(HV)보다 비싼지 봅니다.</span>
+  <span style="flex:1"></span>
+  <a href="/">실시간 화면</a>
+  <a href="/review.html">복기</a>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="card">
+    <h2>1년 IV 추이</h2>
+    <div class="legend">
+      <span><span class="swatch" style="background:var(--accent)"></span>IV</span>
+      <span><span class="swatch" style="background:var(--hv)"></span>최근 20일 실제 변동성(HV20)</span>
+    </div>
+    <div class="chart" id="chart"></div>
+    <ul id="warnings"></ul>
+  </div>
+
+  <div class="card">
+    <h2>보유 옵션 시나리오 · 주가가 그대로일 때 날짜(세타)와 IV에 따라 값이 어떻게 되나</h2>
+    <form id="scenarioForm">
+      <label>종류<select name="type"><option value="CALL">콜</option><option value="PUT">풋</option></select></label>
+      <label>행사가<input name="strike" type="number" step="0.5" required></label>
+      <label>만기<input name="expiry" type="date" required style="width:auto"></label>
+      <label>옵션 가격($)<input name="price" type="number" step="0.01" required></label>
+      <label>주가($, 비우면 데이터 소스)<input name="spot" type="number" step="0.01"></label>
+      <button>계산</button>
+    </form>
+    <div id="scenario" class="muted">토스에서 보는 가격을 넣으면 계산합니다.</div>
+  </div>
+
+  <div class="card">
+    <h2>관심 종목 IV 비교 (행을 누르면 위 그래프가 바뀝니다)</h2>
+    <div class="scroll"><table id="summary"></table></div>
+  </div>
+  <p class="muted" style="font-size:12px">교과서식 참고 지표이며 투자 조언이 아닙니다.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n2 = (v) => (v == null ? '–' : Number(v).toFixed(2));
+const pct = (v, d = 1) => (v == null ? '–' : (v * 100).toFixed(d) + '%');
+const ratio = (v) => (v == null ? '–' : v.toFixed(2));
+const stat = (label, value, sub) => `<div class="card stat"><h2>${label}</h2><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+
+async function getJson(url) {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+// ── 선택 종목 ──
+async function loadHistory() {
+  const symbol = $('symbol').value;
+  document.querySelectorAll('#summary tbody tr').forEach((tr) => tr.classList.toggle('selected', tr.dataset.symbol === symbol));
+  const h = await getJson(`/api/iv/history?symbol=${encodeURIComponent(symbol)}`);
+  const r = h.range;
+  $('stats').innerHTML = [
+    stat('지금 IV', pct(h.current), `${h.currentDate ?? ''} · ${esc(h.source)}`),
+    stat('IV Rank', pct(h.rank, 0), '1년 최저 0% ~ 최고 100% 중 위치'),
+    stat('IV 퍼센타일', pct(h.percentile, 0), '1년 중 지금보다 낮았던 날 비율'),
+    stat('IV ÷ HV20', ratio(h.ivHvRatio), `HV20 ${pct(h.hv20)} · 1보다 크면 실제 변동보다 비쌈`),
+    stat('1년 범위', r ? `${pct(r.min, 0)}~${pct(r.max, 0)}` : '–', r ? `중앙값 ${pct(r.median)} · ${r.samples}일` : ''),
+  ].join('');
+  const pts = h.points.map((p) => ({ x: new Date(p.date).getTime(), iv: p.iv * 100, hv: p.hv20 == null ? null : p.hv20 * 100 }));
+  $('chart').innerHTML = pts.length < 2
+    ? '<div class="muted">IV 기록이 없습니다.</div>'
+    : lineChart([
+      { color: 'var(--accent)', points: pts.map((p) => [p.x, p.iv]) },
+      { color: 'var(--hv)', points: pts.filter((p) => p.hv != null).map((p) => [p.x, p.hv]) },
+    ]);
+  $('warnings').innerHTML = [h.basisLabel ? '기준: ' + h.basisLabel : null, ...h.warnings].filter(Boolean).map((w) => `<li>${esc(w)}</li>`).join('');
+}
+
+// ── 관심 종목 비교 ──
+async function loadSummary() {
+  const rows = await getJson('/api/iv/summary');
+  $('summary').innerHTML = `<thead><tr><th class="left">종목</th><th>지금 IV</th><th>IV Rank</th><th>퍼센타일</th><th>HV20</th><th>IV ÷ HV</th><th>기록</th></tr></thead><tbody>
+    ${rows.map((r) => `<tr data-symbol="${esc(r.symbol)}"><td class="left"><strong>${esc(r.symbol)}</strong></td>
+      ${r.error ? `<td colspan="6" class="muted">${esc(r.error)}</td>` : `<td>${pct(r.current)}</td><td>${pct(r.rank, 0)}</td><td>${pct(r.percentile, 0)}</td><td>${pct(r.hv20)}</td><td>${ratio(r.ivHvRatio)}</td><td class="muted">${r.samples}일</td>`}</tr>`).join('')}</tbody>`;
+  $('summary').querySelectorAll('tbody tr').forEach((tr) => tr.addEventListener('click', () => { $('symbol').value = tr.dataset.symbol; loadHistory(); }));
+  loadHistory();
+}
+
+// ── 보유 옵션 시나리오 ──
+async function runScenario(e) {
+  e.preventDefault();
+  const params = new URLSearchParams(new FormData(e.target));
+  if (!params.get('spot')) params.delete('spot');
+  params.set('symbol', $('symbol').value);
+  try {
+    const v = await getJson('/api/scenario?' + params);
+    const s = v.scenario;
+    const now = s.rows[0].prices[0];
+    const cell = (p) => `<td>$${n2(p)} <span class="${p >= now ? 'up' : 'down'}">${p >= now ? '+' : '−'}$${Math.round(Math.abs(p - now) * 100)}</span></td>`;
+    $('scenario').innerHTML = `
+      <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} · 주가 $${n2(v.spot)} (${esc(v.spotSource)}) ·
+        IV <strong>${pct(s.impliedVol)}</strong> · 델타 ${n2(s.delta)} ·
+        세타 하루 <strong>−$${Math.round(Math.abs(s.thetaPerDay) * 100)}</strong>/계약 ·
+        IV 1%p당 $${Math.round(s.vegaPerPoint * 100)}/계약</p>
+      <div class="scroll"><table>
+        <thead><tr><th class="left">날짜 (장 마감)</th><th>남은 거래일</th>${s.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
+        <tbody>${s.rows.map((r) => `<tr><td class="left">${r.date}</td><td class="muted">${r.tradingDaysLeft.toFixed(1)}</td>${r.prices.map(cell).join('')}</tr>`).join('')}</tbody>
+      </table></div>
+      <ul>${v.notes.map((n) => `<li>${esc(n)}</li>`).join('')}<li>가격은 주당, 괄호 안 증감은 1계약(×100) 기준입니다.</li></ul>`;
+  } catch (err) {
+    $('scenario').innerHTML = `<span class="down">${esc(err.message)}</span>`;
+  }
+}
+
+// ── 여러 선 SVG 그래프 (외부 라이브러리 없이, x는 시간) ──
+function lineChart(series) {
+  const w = 900, h = 260, padL = 48, padB = 22;
+  const all = series.flatMap((s) => s.points);
+  const xs = all.map((p) => p[0]), ys = all.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.floor(Math.min(...ys)), y1 = Math.ceil(Math.max(...ys));
+  const X = (x) => padL + ((x - x0) / (x1 - x0 || 1)) * (w - padL - 8);
+  const Y = (y) => 8 + (1 - (y - y0) / (y1 - y0 || 1)) * (h - 8 - padB);
+  const path = (pts) => pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
+  const day = (x) => new Date(x).toISOString().slice(0, 10);
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">
+    ${series.map((s) => `<path d="${path(s.points)}" fill="none" stroke="${s.color}" stroke-width="2"/>`).join('')}
+    <text x="${padL - 6}" y="16" text-anchor="end">${y1}%</text>
+    <text x="${padL - 6}" y="${h - padB}" text-anchor="end">${y0}%</text>
+    <text x="${padL}" y="${h - 6}">${day(x0)}</text><text x="${w - 8}" y="${h - 6}" text-anchor="end">${day(x1)}</text>
+  </svg>`;
+}
+
+async function init() {
+  const wl = await getJson('/api/watchlist');
+  $('symbol').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
+  $('symbol').addEventListener('change', loadHistory);
+  $('scenarioForm').addEventListener('submit', runScenario);
+  loadSummary();
+}
+init();
+</script>
+</body>
+</html>

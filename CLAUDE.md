@@ -8,7 +8,7 @@
 - `README.md` — 로컬 실행 방법
 
 ## 규칙
-- 스택: Kotlin + Spring Boot + JPA + MySQL + Gradle + ktlint. 패키지는 도메인 기준(`pricing`, `strategy`, `volatility`, `signal`, `earnings`, `seasonality`, `marketdata`, `dashboard` ...).
+- 스택: Kotlin + Spring Boot + JPA + MySQL + Gradle + ktlint. 패키지는 도메인 기준(`pricing`, `strategy`, `volatility`, `scenario`, `signal`, `earnings`, `seasonality`, `marketdata`, `dashboard` ...).
 - 주문 기능과 토스 화면 스크래핑은 넣지 않는다.
 - 외부 데이터는 `marketdata.MarketDataSource` 인터페이스 뒤에 둔다(데이터 소스 교체가 구현체 교체로 끝나게).
-- 계산 클래스(`pricing`, `strategy`, `volatility`, `signal`, `seasonality`, `earnings`)는 Spring·DB 없이 테스트할 수 있게 순수 함수로 둔다.
+- 계산 클래스(`pricing`, `strategy`, `volatility`, `scenario`, `signal`, `seasonality`, `earnings`)는 Spring·DB 없이 테스트할 수 있게 순수 함수로 둔다.
