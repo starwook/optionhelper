@@ -33,6 +33,8 @@ class AlphaVantageEarningsSource(
         val history = query("function" to "EARNINGS", "symbol" to symbol).body(JsonNode::class.java) ?: error("Alpha Vantage 응답이 비었습니다")
         AlphaVantageParser.errorMessage(history)?.let { error("Alpha Vantage: $it") }
 
+        // 바로 이어 부르면 연속 호출 제한에 걸려 깨진 CSV가 온다(2026-11-24 실측). 하루 한 번이라 잠깐 쉰다.
+        Thread.sleep(CALL_GAP_MS)
         val calendar =
             query(
                 "function" to "EARNINGS_CALENDAR",
@@ -50,4 +52,8 @@ class AlphaVantageEarningsSource(
             params.forEach { (key, value) -> builder.queryParam(key, value) }
             builder.queryParam("apikey", properties.apiKey).build()
         }.retrieve()
+
+    private companion object {
+        const val CALL_GAP_MS = 1_500L
+    }
 }

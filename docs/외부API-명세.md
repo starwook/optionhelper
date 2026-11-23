@@ -154,7 +154,7 @@
 | 한도 | 무료 하루 25회. 분당 한도는 무료 플랜에 명시 없음. 유료는 분당 75~1200회, 일 한도 없음 | 공식 [8][9] |
 | 오류 형식 | HTTP 200 + JSON 메시지. 실측된 키는 `Information`(예: demo 키 초당 2회 초과 시 `{"Information": "Please query the demo URLs at no more than 2 requests per second."}`) | 실측 |
 | 그 밖의 오류 키 | `Note`, `Error Message`는 이번 조사에서 문서·응답 모두 확인 못 함. 키 오류·일 한도 초과 응답 형식도 미확인 | 미확인 |
-| CSV 엔드포인트 오류 | `EARNINGS_CALENDAR`가 오류 시 JSON을 주는지 CSV를 주는지 | 미확인 |
+| CSV 엔드포인트 오류 | `EARNINGS_CALENDAR`를 `EARNINGS` 직후(1초 안) 부르면 HTTP 200에 헤더 다음 줄로 메시지가 글자마다 쉼표로 쪼개진 깨진 CSV(`I,n,f,o,r,m,a...`)가 왔다. 1초 이상 띄우면 정상. 예정 실적이 없으면 헤더만 온다(NVDA, 2026-11-24) | 실측 |
 
 앱은 종목당 하루 1번(`EARNINGS` + `EARNINGS_CALENDAR` = 2회) 부른다.
 
@@ -437,13 +437,13 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 
 ---
 
-## 4. 코드와 어긋나는 점 (고치지 않고 기록만)
+## 4. 코드와 어긋나는 점 (고치지 않고 기록만, 해결한 것은 표시)
 
 | # | 위치 | 내용 | 영향 |
 |---|---|---|---|
-| 1 | `AlphaVantageParser` 주석 | "공식 문서에 열·키 이름이 나와 있지 않아"라고 되어 있으나, 실측으로 `EARNINGS`의 `reportTime`(`pre-market`/`post-market`)과 `EARNINGS_CALENDAR`의 `timeOfTheDay`(같은 값 + 빈 값)가 확인됐다. 지금 로직(이름에 `time`이 들어간 열, `pre`/`post` 접두어)으로도 맞게 동작한다 | 동작 영향 없음, 주석만 낡음 |
-| 2 | `AlphaVantageParser.calendarCsv` | 줄을 `split(',')`로 자른다. `name` 열(회사명)에 쉼표가 들어가 따옴표로 감싸져 오면 `reportDate`(3번째 열) 위치가 밀린다. 따옴표 처리 여부는 미확인 | 그런 종목만 예정 실적일이 틀리거나 빠질 수 있음 |
-| 3 | `AlphaVantageEarningsSource.events` | `EARNINGS_CALENDAR`(CSV) 응답은 오류 검사를 안 한다. 한도 초과 등으로 JSON 메시지가 오면 헤더에 `reportDate`가 없어 조용히 빈 목록이 된다 | 한도 초과 시 예정 실적일이 오류 없이 사라짐 |
+| 1 | `AlphaVantageParser` 주석 | "공식 문서에 열·키 이름이 나와 있지 않아"라고 되어 있으나, 실측으로 `EARNINGS`의 `reportTime`(`pre-market`/`post-market`)과 `EARNINGS_CALENDAR`의 `timeOfTheDay`(같은 값 + 빈 값)가 확인됐다. 지금 로직(이름에 `time`이 들어간 열, `pre`/`post` 접두어)으로도 맞게 동작한다 | **해결**(2026-11-24): 주석 갱신 |
+| 2 | `AlphaVantageParser.calendarCsv` | 줄을 `split(',')`로 자른다. `name` 열(회사명)에 쉼표가 들어가 따옴표로 감싸져 오면 `reportDate`(3번째 열) 위치가 밀린다. 따옴표 처리 여부는 미확인 | **해결**(2026-11-24): 따옴표 처리 추가 |
+| 3 | `AlphaVantageEarningsSource.events` | `EARNINGS_CALENDAR`(CSV) 응답은 오류 검사를 안 한다. 한도 초과 등으로 JSON 메시지가 오면 헤더에 `reportDate`가 없어 조용히 빈 목록이 된다 | **해결**(2026-11-24): 읽을 수 없으면 예외(저장값 유지·경고 로그), 두 호출 사이 1.5초 대기 |
 | 4 | `AlpacaParser.bars` | 일봉 `t`를 `OffsetDateTime.parse(...).toLocalDate()`로 UTC 날짜로 쓴다. 일봉 `t`가 뉴욕 자정(04:00Z/05:00Z)이면 UTC 날짜와 뉴욕 날짜가 같아 문제없다. 다만 오프셋 규칙은 문서에 명시돼 있지 않음 | 현재 영향 없음으로 판단, 실측 필요 |
 | 5 | `AlphaVantageParser.errorMessage` | `Note`·`Error Message` 키는 이번 조사에서 확인 못 했고, 실측된 건 `Information`뿐이다. 세 키를 다 보는 지금 방식은 안전한 쪽 | 영향 없음 |
 | 6 | 이전 문서 3장 | "Gateway 실계좌 4001"은 공식 문서에서 확인되지 않았다(위 3-2). 또 과거 IV(`OPTION_IMPLIED_VOLATILITY`)는 옵션 계약이 아니라 **주식 계약**으로 요청해야 한다(3-7) | IBKR 구현 시 주의 |
