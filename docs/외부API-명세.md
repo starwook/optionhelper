@@ -24,7 +24,7 @@
 | 한도 | Basic(무료) 과거 데이터 API 분당 200회, Algo Trader Plus(월 $99) 분당 10,000회 | 공식 [4] |
 | 한도 헤더 | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`(UNIX 초) | 공식 [1] |
 | 최근 15분 제한 | Basic은 최근 15분 SIP 데이터 조회 불가. 과거 조회는 `end`가 15분 이상 지난 시각이면 SIP도 무료 | 공식 [5] |
-| 주식 과거 데이터 시작 | 2016년부터 (Basic·유료 동일) | 공식 [4] |
+| 주식 과거 데이터 시작 | 2016년부터 (Basic·유료 동일). 무료 키 실측: `feed=sip` 첫 일봉 2016-01-04, `feed=iex` 첫 일봉 2020-07-27 | 공식 [4], 실측 |
 | 옵션 과거 데이터 시작 | 2024년 2월부터 | 공식 [6] |
 | 오류 HTTP 코드 | 400 파라미터 오류, 401 인증 헤더 없음/틀림, 403 구독 범위 밖, 429 한도 초과, 500 서버 오류 | 공식 [1][2][3] |
 | 오류 본문 | 레퍼런스에 스키마 없음. FAQ 예시: `{"code":42210000,"message":"subscription does not permit querying recent SIP data"}` (HTTP 코드는 안 나와 있음) | 공식 [5] |
@@ -59,6 +59,8 @@
 | `minuteBar`, `dailyBar`, `prevDailyBar` | `t`, `o`, `h`, `l`, `c`, `v` 거래량, `n` 체결 건수, `vw` VWAP |
 
 **코드가 쓰는 것**: `feed=iex`(설정값), `latestTrade.p`, `latestTrade.t`, `dailyBar.o`, `prevDailyBar.c`.
+
+**실측** (2026-11-24, 무료 키): `feed=iex` → HTTP 200, `latestTrade.p`/`t`, `dailyBar.o`, `prevDailyBar.c` 모두 옴.
 
 ### 1-2. 옵션 체인 스냅샷 `GET /v1beta1/options/snapshots/{underlying_symbol}` — 공식 [2]
 
@@ -97,6 +99,8 @@
 
 **코드가 쓰는 것**: `feed`(설정, 기본 `indicative`), `limit=1000`, `page_token`, `expiration_date` 또는 `expiration_date_gte/lte`, `strike_price_gte/lte`. 응답 `snapshots{심볼: latestQuote.bp, latestQuote.ap, impliedVolatility, greeks.delta}`, `next_page_token`. 심볼은 `OccSymbol.parse`.
 
+**실측** (2026-11-24, 무료 키): `feed=indicative` → HTTP 200. 각 항목에 `latestQuote{ap, as, ax, bp, bs, bx, c, t}`, `latestTrade`, `dailyBar`, `impliedVolatility`, `greeks`가 옴. 12/24 만기 175~185 행사가는 `impliedVolatility`(약 0.57~0.60)와 `greeks.delta`가 채워져 옴. `limit=5`면 `next_page_token`이 옴(페이지네이션 동작 확인).
+
 ### 1-3. 주식 봉 `GET /v2/stocks/bars` — 공식 [3]
 
 파라미터
@@ -127,6 +131,8 @@
 - 일봉 `t`: FAQ에 "일봉은 뉴욕 날짜 기준으로 자른다"고 되어 있고 [5], 예시 값이 `2022-08-16T04:00:00Z`(뉴욕 자정, EDT)다. UTC 오프셋 규칙은 명시돼 있지 않음 → 겨울(EST)엔 `05:00:00Z`로 추정, **미확인**.
 
 **코드가 쓰는 것**: `symbols`, `timeframe=1Day`, `start`, `end`(어제), `limit=10000`, `adjustment=all`, `feed=sip`(실패 시 `iex`), `page_token`. 응답 `bars{심볼: [t, o, h, l, c]}`, `next_page_token`.
+
+**실측** (2026-11-24, 무료 키, `adjustment=all`): `feed=sip`도 HTTP 200(`end`가 어제라 15분 제한에 안 걸림), 첫 봉 2016-01-04. `feed=iex`는 첫 봉 2020-07-27. 코드는 `sip`을 먼저 부르므로 실제로는 2016년부터 받는다.
 
 근거
 - [1] https://docs.alpaca.markets/reference/stocksnapshotsingle
