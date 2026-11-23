@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: optionhelper
+  profiles:
+    active: local
+  datasource:
+    url: jdbc:mysql://localhost:3306/optionhelper?serverTimezone=UTC&characterEncoding=UTF-8
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: 8080
+
+optionhelper:
+  market-data:
+    # fake(키 없이 화면 확인) | alpaca(무료) | ibkr(계좌 준비 후 추가 예정)
+    source: fake
+  earnings:
+    # fake | alphavantage
+    source: fake
+  pricing:
+    risk-free-rate: 0.04
+  recorder:
+    enabled: true
+    symbols: NVDA
+    interval-ms: 60000

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>옵션 복기</title>
+<style>
+  /* index.html과 같은 색·카드 스타일 */
+  :root { --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1; --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; --call: #4ea8de; --put: #f0a04b; --raised: #262e3f; }
+  .call { color: var(--call); font-weight: 700; } .put { color: var(--put); font-weight: 700; }
+  td.strike { text-align: center; background: var(--raised); font-weight: 700; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
+  header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
+  header select, header input { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 14px; }
+  a { color: var(--accent); }
+  main { padding: 12px 16px; display: grid; grid-template-columns: 220px 1fr; gap: 12px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+  .card h2 { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+  .muted { color: var(--muted); } .up { color: var(--up); } .down { color: var(--down); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 12px; }
+  .stat .value { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .sub { font-size: 12px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .left { text-align: left; }
+  tr.atm td { background: #22324a; }
+  .times button { display: block; width: 100%; text-align: left; background: none; color: var(--text); border: 0; border-bottom: 1px solid var(--line); padding: 6px 4px; cursor: pointer; font: inherit; }
+  .times button.selected { background: #2b2540; }
+  .scroll { overflow-x: auto; }
+  .detail { display: grid; gap: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <strong>복기</strong>
+  <select id="symbol" aria-label="종목"></select>
+  <input id="date" type="date" aria-label="날짜">
+  <span class="muted">그날 장중 1분마다 저장된 화면을 다시 보고, 그때 산 전략이 만기에 어떻게 됐는지 확인합니다.</span>
+  <span style="flex:1"></span>
+  <a href="/">실시간 화면으로</a>
+</header>
+<main>
+  <div class="card"><h2>저장된 시각 (ET)</h2><div id="times" class="times"></div></div>
+  <div id="detail" class="detail"><div class="card muted">왼쪽에서 시각을 고르세요.</div></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const n2 = (v) => (v == null ? '–' : Number(v).toFixed(2));
+const pct = (v, d = 1) => (v == null ? '–' : (v * 100).toFixed(d) + '%');
+const signed = (v, d = 1) => (v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
+const money = (v) => (v == null ? '–' : (v >= 0 ? '+$' : '−$') + Math.abs(Math.round(v)).toLocaleString());
+const cls = (v) => (v == null ? '' : v >= 0 ? 'up' : 'down');
+
+async function getJson(url) {
+  const res = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || res.status);
+  return data;
+}
+
+async function loadTimes() {
+  const list = await getJson(`/api/review/snapshots?symbol=${encodeURIComponent($('symbol').value)}&date=${$('date').value}`);
+  $('times').innerHTML = list.length
+    ? list.map((s) => `<button data-id="${s.id}">${esc(s.capturedAtEt.slice(11))} <span class="muted">$${n2(s.spot)} · 만기 ${s.expiry}</span></button>`).join('')
+    : '<div class="muted">이 날짜에 저장된 기록이 없습니다.</div>';
+  $('times').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => show(b)));
+}
+
+async function show(button) {
+  $('times').querySelectorAll('button').forEach((b) => b.classList.toggle('selected', b === button));
+  const r = await getJson('/api/review/snapshots/' + button.dataset.id);
+  const o = r.outcome;
+  const m = r.expectedMove;
+  const results = Object.fromEntries(o.results.map((x) => [x.kind + '|' + x.legs, x.profit]));
+  $('detail').innerHTML = `
+    <div class="stats">
+      ${stat('그때 주가', '$' + n2(r.spot), `${esc(r.capturedAtEt)}<br>${esc(r.capturedAtKst)}`)}
+      ${stat('스트래들', r.straddle == null ? '–' : '$' + n2(r.straddle), `ATM ${r.atmStrike ?? '–'} · 만기 ${r.expiry}`)}
+      ${stat('그때 예상 변동폭', m ? '±' + pct(m.pct, 2) : '–', `ATM IV ${pct(r.atmIv)}`)}
+      ${stat(o.settled ? '만기 종가' : '지금 가격(만기 전)', o.price == null ? '–' : '$' + n2(o.price), `그때 대비 <span class="${cls(o.movePct)}">${signed(o.movePct, 2)}</span>`)}
+      ${stat('실제 ÷ 예상', o.moveVsExpected == null ? '–' : Math.round(o.moveVsExpected * 100) + '%', '100%보다 크면 예상보다 더 움직임')}
+    </div>
+    <div class="card"><h2>그때 전략을 1계약씩 샀다면 ${o.settled ? '(만기 확정)' : '(만기 전, 지금 가격 기준)'} · 토스 수수료 왕복 포함</h2>
+      <div class="scroll"><table>
+        <thead><tr><th class="left">전략</th><th>비용</th><th>본전(수수료 포함)</th><th>결과</th></tr></thead>
+        <tbody>${r.strategies.map((s) => {
+          const p = results[s.kind + '|' + s.legs];
+          return `<tr><td class="left"><strong>${esc(s.label)}</strong><br><span class="muted">${esc(s.legs)}</span></td>
+            <td>${s.netPremium < 0 ? '받음 ' : ''}$${Math.round(Math.abs(s.netPremium) * 100)}</td>
+            <td>${s.breakevensWithFee.map((b) => n2(b.price)).join(' / ')}</td>
+            <td class="${cls(p)}"><strong>${money(p)}</strong></td></tr>`;
+        }).join('')}</tbody></table></div></div>
+    <div class="card"><h2>그때 체인</h2><div class="scroll"><table>
+      <thead><tr><th>콜 매수</th><th>매도</th><th class="call">중간</th><th style="text-align:center">행사가</th><th class="put">중간</th><th>풋 매수</th><th>매도</th></tr></thead>
+      <tbody>${r.chain.map((c) => `<tr class="${c.atm ? 'atm' : ''}">${callLeg(c.call)}<td class="strike">${c.strike}</td>${putLeg(c.put)}</tr>`).join('')}</tbody>
+    </table></div></div>`;
+}
+
+const stat = (label, value, sub) => `<div class="card stat"><h2>${label}</h2><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+const callLeg = (l) => (l ? `<td class="muted">${n2(l.bid)}</td><td class="muted">${n2(l.ask)}</td><td class="call">${n2(l.mid)}</td>` : '<td colspan="3" class="muted">–</td>');
+const putLeg = (l) => (l ? `<td class="put">${n2(l.mid)}</td><td class="muted">${n2(l.bid)}</td><td class="muted">${n2(l.ask)}</td>` : '<td colspan="3" class="muted">–</td>');
+
+async function init() {
+  const wl = await getJson('/api/watchlist');
+  $('symbol').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
+  $('date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  $('symbol').addEventListener('change', loadTimes);
+  $('date').addEventListener('change', loadTimes);
+  loadTimes();
+}
+init();
+</script>
+</body>
+</html>

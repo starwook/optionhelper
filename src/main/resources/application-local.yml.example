@@ -1,0 +1,16 @@
+# 이 파일을 application-local.yml 로 복사한 뒤 값을 채운다. application-local.yml 은 git에 올라가지 않는다.
+spring:
+  datasource:
+    username: root
+    password: change-me
+
+optionhelper:
+  market-data:
+    source: alpaca
+    alpaca:
+      key-id: your-alpaca-key-id
+      secret-key: your-alpaca-secret-key
+  earnings:
+    source: alphavantage
+    alpha-vantage:
+      api-key: your-alpha-vantage-key
