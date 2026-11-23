@@ -155,7 +155,7 @@
       <button role="tab" data-tab="strategy">전략</button>
       <button role="tab" data-tab="chain">체인</button>
       <button role="tab" data-tab="vol">변동성</button>
-      <button role="tab" data-tab="context">실적 · 계절성</button>
+      <button role="tab" data-tab="context">실적 · 지표 · 계절성</button>
     </div>
     <div class="tab-body" id="tab-strategy">
       <div class="two">
@@ -183,6 +183,7 @@
         <div><div class="label">월별 수익률 (일봉 기준, 이번 달 테두리)</div><div class="scroll"><table class="heat" id="season"></table></div></div>
         <div><div class="label">과거 실적 발표 후 주가 반응</div><div class="scroll"><table id="reactions"></table></div></div>
       </div>
+      <div><div class="label">다가오는 경제지표 (FOMC · CPI · PPI · 고용 · PCE)</div><div class="scroll"><table id="macro"></table></div></div>
     </div>
   </section>
 </main>
@@ -237,7 +238,7 @@ function render(d) {
   renderChain(d);
   renderVol(d);
   renderContext(d);
-  $('footer').textContent = `${d.feed.name}: ${d.feed.note} 실적 일정은 ${d.earningsSource}. 만기는 미국 동부 장 마감, IV 시간은 실거래시간 기준. 조회 전용이며 투자 조언이 아닙니다.`;
+  $('footer').textContent = `${d.feed.name}: ${d.feed.note} 실적 일정은 ${d.earningsSource}, 경제지표 일정은 수동 입력(${d.macro.coversUntil ?? '–'}까지). 만기는 미국 동부 장 마감, IV 시간은 실거래시간 기준. 조회 전용이며 투자 조언이 아닙니다.`;
 }
 
 // ── 상단 바 ──
@@ -293,13 +294,15 @@ function renderJudge(d) {
   const r = v.ivHvRatio;
   $('verdict').innerHTML = r == null ? '판단 불가' : r >= 1.3 ? '<span class="put">비싼 편</span>' : r <= 0.9 ? '<span class="call">싼 편</span>' : '보통';
   const e = d.earnings;
+  const m = d.macro.upcoming[0];
   const rv = d.realizedVsExpected;
   $('judge').innerHTML = [
     row('ATM IV', `${pct(v.atmIvCalc)} <span class="faint">(소스 ${pct(v.atmIvApi)})</span>`),
     row('IV ÷ 최근 20일 실제 변동성', r == null ? '–' : r.toFixed(2)),
     row('IV 퍼센타일', v.ivSamples ? `${pct(v.ivPercentile, 0)} <span class="faint">(기록 ${v.ivSamples}개)</span>` : '<span class="faint">기록 쌓는 중</span>'),
     row('오늘 움직임 ÷ 예상', rv ? `<span class="${tone(rv.realizedPct)}">${signed(rv.realizedPct, 2)}</span> → ${Math.round(rv.ratio * 100)}%` : '–'),
-    row('다음 실적', e.next ? `${e.next.date} (D-${e.daysUntil})${e.beforeExpiry ? ' <span class="put">만기 안</span>' : ''}` : '–'),
+    row('다음 실적', e.next ? `${e.next.date} (D-${e.daysUntil})${e.beforeExpiry ? ' <span class="put">만기 안</span>' : ''}` : '<span class="faint">정해지지 않음</span>'),
+    row('다음 경제지표', m ? `${esc(m.label)} ${m.date} (D-${m.daysUntil})${m.beforeExpiry ? ' <span class="put">만기 안</span>' : ''}` : '–'),
   ].join('');
   $('signals').innerHTML = d.signals.map((s) => `<div class="signal"><strong>${esc(ZONES[s.zone] || s.zone)}</strong><div class="muted">${esc(s.reason)}</div></div>`).join('');
   const box = $('warnings');
@@ -394,6 +397,11 @@ function renderContext(d) {
     ? `<caption class="left">${expected}</caption><thead><tr><th class="left">발표일</th><th class="left">시점</th><th>다음 반응</th></tr></thead><tbody>
        ${st.reactions.slice().reverse().map((r) => `<tr><td class="left">${r.event.date}</td><td class="left muted">${TIMING[r.event.timing] || r.event.timing}</td><td class="${tone(r.movePct)}">${signed(r.movePct)}</td></tr>`).join('')}</tbody>`
     : '<tr><td class="empty">실적 반응 데이터가 없습니다.</td></tr>';
+  const macro = d.macro.upcoming;
+  $('macro').innerHTML = macro.length
+    ? `<thead><tr><th class="left">지표</th><th class="left">발표</th><th class="left">한국 시간</th><th>남은 날</th></tr></thead><tbody>
+       ${macro.map((x) => `<tr><td class="left">${esc(x.label)}${x.beforeExpiry ? ' <span class="put">만기 안</span>' : ''}</td><td class="left">${x.timeEt}</td><td class="left muted">${x.timeKst}</td><td>D-${x.daysUntil}</td></tr>`).join('')}</tbody>`
+    : '<tr><td class="empty">경제지표 일정이 없습니다(macro-calendar.csv 갱신 필요).</td></tr>';
 }
 
 const MONTHS = ['JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE', 'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'];

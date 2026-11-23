@@ -37,6 +37,7 @@ class DashboardApiTest {
         assertThat(d["strategies"].map { it["kind"].asText() }).contains("LONG_STRADDLE", "LONG_STRANGLE", "SHORT_PUT")
         assertThat(d["seasonality"].size()).isEqualTo(12)
         assertThat(d["earnings"]["next"].isNull).isFalse()
+        assertThat(d["macro"]["coversUntil"].asText()).isEqualTo("2027-12-22")
     }
 
     @Test

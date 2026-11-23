@@ -2,6 +2,9 @@ package com.optionhelper.dashboard
 
 import com.optionhelper.earnings.Earnings
 import com.optionhelper.earnings.EarningsService
+import com.optionhelper.macro.MacroCalendar
+import com.optionhelper.macro.MacroCalendarFile
+import com.optionhelper.macro.MacroEvent
 import com.optionhelper.marketdata.DailyBarService
 import com.optionhelper.marketdata.MarketDataSource
 import com.optionhelper.option.IvHistory
@@ -38,6 +41,7 @@ class DashboardService(
     private val source: MarketDataSource,
     private val dailyBars: DailyBarService,
     private val earnings: EarningsService,
+    private val macroCalendar: MacroCalendarFile,
     private val ivHistory: IvHistory,
     private val pricing: PricingProperties,
     private val clock: Clock,
@@ -123,6 +127,7 @@ class DashboardService(
         if (atm != null && atm.call.ivApi == null) warnings += "데이터 소스가 ATM IV를 주지 않았습니다(0DTE·깊은 OTM에서 흔함). 직접 계산값을 보세요."
         if (history.size < MIN_PERCENTILE_SAMPLES) warnings += "IV 기록이 ${history.size}개뿐이라 퍼센타일은 참고만 하세요(장중 1분마다 쌓입니다)."
         if (beforeExpiry) warnings += "선택한 만기 안에 실적발표(${next?.date})가 있습니다."
+        val macro = macroView(today, expiry, warnings)
 
         return DashboardResponse(
             symbol = symbol,
@@ -170,6 +175,7 @@ class DashboardService(
             chain = chainRows(chain, atmStrike, legs),
             strategies = strategies(chain, atmStrike, spot, expectedMove),
             earnings = EarningsView(next, next?.let { Earnings.daysUntil(it, today) }, beforeExpiry, stats),
+            macro = macro,
             seasonality = Seasonality.monthStats(bars),
             currentMonth = today.monthValue,
             signals = signals,
@@ -181,6 +187,43 @@ class DashboardService(
                     )
                 }.getOrDefault(emptyList()),
             warnings = warnings,
+        )
+    }
+
+    /** 경제지표 일정: 다가오는 것 몇 개 + 만기 안 지표 경고 + 일정 파일 갱신 경고. */
+    private fun macroView(
+        today: LocalDate,
+        expiry: LocalDate,
+        warnings: MutableList<String>,
+    ): MacroView {
+        val events = macroCalendar.events
+        val within = MacroCalendar.withinExpiry(events, today, expiry)
+        if (within.isNotEmpty()) {
+            warnings += "선택한 만기 안에 경제지표 발표가 있습니다: " +
+                within.joinToString(", ") { "${it.type.label}(${it.date.format(MONTH_DAY)})" }
+        }
+        val coversUntil = MacroCalendar.coversUntil(events)
+        if (coversUntil == null || coversUntil.isBefore(today.plusDays(MACRO_REFRESH_DAYS))) {
+            warnings += "경제지표 일정 파일(macro-calendar.csv)이 ${coversUntil ?: "비어 있음"}까지라 다음 해 일정으로 갱신이 필요합니다."
+        }
+        val upcoming = MacroCalendar.upcoming(events, today, MACRO_UPCOMING).map { macroEventView(it, today, expiry) }
+        return MacroView(upcoming, coversUntil)
+    }
+
+    private fun macroEventView(
+        event: MacroEvent,
+        today: LocalDate,
+        expiry: LocalDate,
+    ): MacroEventView {
+        val at = event.date.atTime(event.type.releaseTimeEt).atZone(MarketClock.NEW_YORK).toInstant()
+        return MacroEventView(
+            type = event.type.name,
+            label = event.type.label,
+            date = event.date,
+            timeEt = format(at, MarketClock.NEW_YORK, "ET"),
+            timeKst = format(at, MarketClock.SEOUL, "KST"),
+            daysUntil = MacroCalendar.daysUntil(event, today),
+            beforeExpiry = event.reactsBy(expiry),
         )
     }
 
@@ -257,6 +300,9 @@ class DashboardService(
         private val CACHE_TTL: Duration = Duration.ofSeconds(5)
         private val EXPIRATION_TTL: Duration = Duration.ofMinutes(10)
         private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+        private val MONTH_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("MM/dd")
+        private const val MACRO_UPCOMING = 10
+        private const val MACRO_REFRESH_DAYS = 60L
         private const val CHAIN_RANGE = 0.15
         private const val NARROW_RANGE = 0.03
         private const val CHAIN_ROWS = 10
