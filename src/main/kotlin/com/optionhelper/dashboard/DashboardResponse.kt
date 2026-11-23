@@ -44,6 +44,7 @@ data class DashboardResponse(
     val chain: List<ChainRow>,
     val strategies: List<StrategyView>,
     val earnings: EarningsView,
+    val macro: MacroView,
     val seasonality: List<MonthStats>,
     val currentMonth: Int,
     val signals: List<StrategySignal>,
@@ -128,4 +129,22 @@ data class EarningsView(
     // 선택한 만기 안에 실적 반응이 들어오는가
     val beforeExpiry: Boolean,
     val stats: EarningsMoveStats?,
+)
+
+data class MacroView(
+    // 오늘 이후 가까운 순
+    val upcoming: List<MacroEventView>,
+    // 일정 파일이 채워진 마지막 날짜
+    val coversUntil: LocalDate?,
+)
+
+data class MacroEventView(
+    val type: String,
+    val label: String,
+    val date: LocalDate,
+    val timeEt: String,
+    val timeKst: String,
+    val daysUntil: Long,
+    // 선택한 만기 안에 발표되는가
+    val beforeExpiry: Boolean,
 )
