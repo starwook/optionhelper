@@ -71,6 +71,20 @@
   </div>
 
   <div class="card">
+    <h2>개장 예상가 · 프리마켓 주가로 본장 시작 때 옵션 적정가 추정 (매도 지정가 기준)</h2>
+    <form id="openForm">
+      <label>종류<select name="type"><option value="CALL">콜</option><option value="PUT">풋</option></select></label>
+      <label>행사가<input name="strike" type="number" step="0.5" required></label>
+      <label>만기<input name="expiry" type="date" required style="width:auto"></label>
+      <label>전일 마감 옵션 가격($)<input name="previousPrice" type="number" step="0.01" required></label>
+      <label>프리마켓 주가($, 비우면 자동)<input name="premarket" type="number" step="0.01"></label>
+      <label>전일 종가($, 비우면 자동)<input name="previousClose" type="number" step="0.01"></label>
+      <button>계산</button>
+    </form>
+    <div id="openEstimate" class="muted">자동 조회는 한국 시간 22:00–23:30(서머타임 21:00–22:30)에만 프리마켓이 반영됩니다. 그 전에는 토스의 프리마켓 주가를 넣으세요.</div>
+  </div>
+
+  <div class="card">
     <h2>관심 종목 IV 비교 (행을 누르면 위 그래프가 바뀝니다)</h2>
     <div class="scroll"><table id="summary"></table></div>
   </div>
@@ -151,6 +165,36 @@ async function runScenario(e) {
   }
 }
 
+// ── 개장 예상가 ──
+const timeIn = (iso, zone) => new Date(iso).toLocaleString('ko-KR', { timeZone: zone, month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+const signedPct = (v) => (v >= 0 ? '+' : '−') + (Math.abs(v) * 100).toFixed(1) + '%';
+
+async function runOpenEstimate(e) {
+  e.preventDefault();
+  const params = new URLSearchParams(new FormData(e.target));
+  ['premarket', 'previousClose'].forEach((k) => { if (!params.get(k)) params.delete(k); });
+  params.set('symbol', $('symbol').value);
+  try {
+    const v = await getJson('/api/scenario/open-estimate?' + params);
+    const o = v.estimate;
+    const row = (r) => `<tr${r.move === 0 ? ' style="background:var(--raised)"' : ''}>
+      <td class="left">${r.move === 0 ? '프리마켓가 그대로' : signedPct(r.move)}</td><td>$${n2(r.spot)}</td><td class="muted">$${n2(r.intrinsic)}</td>
+      ${r.prices.map((p, i) => `<td>${i === 0 && r.move === 0 ? `<strong>$${n2(p)}</strong>` : '$' + n2(p)}</td>`).join('')}</tr>`;
+    $('openEstimate').innerHTML = `
+      <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} ·
+        프리마켓 $${n2(v.premarket)} <span class="${o.gap >= 0 ? 'up' : 'down'}">${signedPct(o.gap)}</span> (전일 종가 $${n2(v.previousClose)}, ${esc(v.spotSource)}${v.spotAsOf ? ' · 체결 ' + timeIn(v.spotAsOf, 'Asia/Seoul') : ''}) ·
+        전일 IV ${pct(o.impliedVol)} · 델타 ${n2(o.delta)} · 주가 $1당 델타 +${n2(o.gamma)}</p>
+      <p class="muted">기준 시각(한국): ${timeIn(o.basisAt, 'Asia/Seoul')} ${timeIn(o.basisAt, 'America/New_York').endsWith('09:30') ? '개장' : '· 장중이라 지금 기준'}</p>
+      <div class="scroll"><table>
+        <thead><tr><th class="left">개장 때 주가</th><th>주가</th><th>내재가치</th>${o.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
+        <tbody>${o.rows.map(row).join('')}</tbody>
+      </table></div>
+      <ul>${v.notes.map((n) => `<li>${esc(n)}</li>`).join('')}<li>가격은 주당입니다. 내재가치는 옵션 가격의 하한선입니다.</li></ul>`;
+  } catch (err) {
+    $('openEstimate').innerHTML = `<span class="down">${esc(err.message)}</span>`;
+  }
+}
+
 // ── 여러 선 SVG 그래프 (외부 라이브러리 없이, x는 시간) ──
 function lineChart(series) {
   const w = 900, h = 260, padL = 48, padB = 22;
@@ -174,6 +218,7 @@ async function init() {
   $('symbol').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
   $('symbol').addEventListener('change', loadHistory);
   $('scenarioForm').addEventListener('submit', runScenario);
+  $('openForm').addEventListener('submit', runOpenEstimate);
   loadSummary();
 }
 init();
