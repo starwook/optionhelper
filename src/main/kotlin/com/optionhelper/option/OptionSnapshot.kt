@@ -33,13 +33,17 @@ class OptionSnapshot(
     // 가장 가까운 만기의 ATM IV(직접 역산값 우선)
     val atmIv: Double?,
     // 화면용 체인 행(JSON). 복기 모드에서 그대로 다시 그린다.
+    // 길이를 안 주면 MySQL에서 tinytext(255바이트)가 된다. 실제 체인은 수십 KB라 mediumtext로 둔다.
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, length = MEDIUMTEXT_LENGTH)
     val chainJson: String,
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 )
+
+// MySQL mediumtext 최대 길이(16MB)
+private const val MEDIUMTEXT_LENGTH = 16_777_215
 
 interface OptionSnapshotRepository : JpaRepository<OptionSnapshot, Long> {
     @Query("select s.atmIv from OptionSnapshot s where s.symbol = :symbol and s.capturedAt >= :since and s.atmIv is not null")
