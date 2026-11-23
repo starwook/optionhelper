@@ -81,7 +81,7 @@
       <label>전일 종가($, 비우면 자동)<input name="previousClose" type="number" step="0.01"></label>
       <button>계산</button>
     </form>
-    <div id="openEstimate" class="muted">자동 조회는 08:00–09:30 ET(한국 22:00–23:30, 서머타임 21:00–22:30)에만 프리마켓이 반영됩니다. 그 전에는 토스의 프리마켓 주가를 넣으세요.</div>
+    <div id="openEstimate" class="muted">자동 조회는 한국 시간 22:00–23:30(서머타임 21:00–22:30)에만 프리마켓이 반영됩니다. 그 전에는 토스의 프리마켓 주가를 넣으세요.</div>
   </div>
 
   <div class="card">
@@ -182,9 +182,9 @@ async function runOpenEstimate(e) {
       ${r.prices.map((p, i) => `<td>${i === 0 && r.move === 0 ? `<strong>$${n2(p)}</strong>` : '$' + n2(p)}</td>`).join('')}</tr>`;
     $('openEstimate').innerHTML = `
       <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} ·
-        프리마켓 $${n2(v.premarket)} <span class="${o.gap >= 0 ? 'up' : 'down'}">${signedPct(o.gap)}</span> (전일 종가 $${n2(v.previousClose)}, ${esc(v.spotSource)}${v.spotAsOf ? ' · 체결 ' + timeIn(v.spotAsOf, 'America/New_York') + ' ET' : ''}) ·
+        프리마켓 $${n2(v.premarket)} <span class="${o.gap >= 0 ? 'up' : 'down'}">${signedPct(o.gap)}</span> (전일 종가 $${n2(v.previousClose)}, ${esc(v.spotSource)}${v.spotAsOf ? ' · 체결 ' + timeIn(v.spotAsOf, 'Asia/Seoul') : ''}) ·
         전일 IV ${pct(o.impliedVol)} · 델타 ${n2(o.delta)} · 주가 $1당 델타 +${n2(o.gamma)}</p>
-      <p class="muted">기준 시각: ${timeIn(o.basisAt, 'America/New_York')} ET (${timeIn(o.basisAt, 'Asia/Seoul')} KST) 개장</p>
+      <p class="muted">기준 시각(한국): ${timeIn(o.basisAt, 'Asia/Seoul')} ${timeIn(o.basisAt, 'America/New_York').endsWith('09:30') ? '개장' : '· 장중이라 지금 기준'}</p>
       <div class="scroll"><table>
         <thead><tr><th class="left">개장 때 주가</th><th>주가</th><th>내재가치</th>${o.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
         <tbody>${o.rows.map(row).join('')}</tbody>
