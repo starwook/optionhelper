@@ -99,11 +99,12 @@ class DashboardService(
             }
         val straddle = atm?.let { it.call.mid + it.put.mid }
         val expectedMove = straddle?.takeIf { it > 0 }?.let { ExpectedMove.of(it, spot) }
-        val realized = if (quote.open != null && expectedMove != null) RealizedVsExpected.of(quote.open, spot, expectedMove.pct) else null
-
         val bars = loadOrEmpty("일봉", warnings) { dailyBars.bars(symbol) }
         val events = loadOrEmpty("실적 일정", warnings) { earnings.events(symbol) }
         val today = now.atZone(MarketClock.NEW_YORK).toLocalDate()
+        val previousClose = previousClose(bars, today) ?: quote.previousClose
+        val realized =
+            if (previousClose != null && expectedMove != null) RealizedVsExpected.of(previousClose, spot, expectedMove.pct) else null
 
         val atmIvCalc = average(atm?.call?.ivCalc, atm?.put?.ivCalc)
         val atmIvApi = average(atm?.call?.ivApi, atm?.put?.ivApi)
@@ -147,8 +148,7 @@ class DashboardService(
             hoursToExpiry = hours,
             spot = spot,
             spotAsOfKst = format(quote.asOf, MarketClock.SEOUL, "KST"),
-            open = quote.open,
-            previousClose = previousClose(bars, today) ?: quote.previousClose,
+            previousClose = previousClose,
             atm = atm,
             straddle = straddle,
             expectedMove = expectedMove,

@@ -27,7 +27,7 @@ data class ExpectedMove(
     }
 }
 
-/** 오늘 시가 대비 실제로 움직인 것과 예상 변동폭 비교. ratio가 1이면 예상만큼 이미 움직임. */
+/** 전일 종가 대비 실제로 움직인 것과 예상 변동폭 비교. ratio가 1이면 예상만큼 이미 움직임. */
 data class RealizedVsExpected(
     val realizedPct: Double,
     val expectedPct: Double,
@@ -35,11 +35,11 @@ data class RealizedVsExpected(
 ) {
     companion object {
         fun of(
-            open: Double,
+            previousClose: Double,
             current: Double,
             expectedPct: Double,
         ): RealizedVsExpected {
-            val realized = current / open - 1
+            val realized = current / previousClose - 1
             return RealizedVsExpected(realized, expectedPct, abs(realized) / expectedPct)
         }
     }
