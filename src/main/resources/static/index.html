@@ -580,7 +580,7 @@ function renderChain(d) {
   $('chain').innerHTML = `<thead>
       <tr><th colspan="5" class="call-h" style="text-align:center">콜</th><th class="strike">행사가${term('strike')}</th><th colspan="5" class="put-h" style="text-align:center">풋</th></tr>
       <tr><th>매수${term('bidAsk')}</th><th>매도</th><th class="call-h">중간가${term('mid')}</th><th>IV${term('iv')}</th><th>델타${term('delta')}</th><th class="strike"></th><th>델타</th><th>IV</th><th class="put-h">중간가</th><th>매수</th><th>매도</th></tr></thead>
-    <tbody>${d.chain.map((r) => `<tr class="${r.atm ? 'atm' : ''}">${call(r.call, r.strike < d.spot)}<td class="strike">${strike(r.strike)}</td>${put(r.put, r.strike > d.spot)}</tr>`).join('')}</tbody>`;
+    <tbody>${[...d.chain].sort((a, b) => b.strike - a.strike).map((r) => `<tr class="${r.atm ? 'atm' : ''}">${call(r.call, r.strike < d.spot)}<td class="strike">${strike(r.strike)}</td>${put(r.put, r.strike > d.spot)}</tr>`).join('')}</tbody>`;
 }
 
 // ── 일정 ──
