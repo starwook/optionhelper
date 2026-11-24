@@ -4,13 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>옵션 복기</title>
+<link rel="stylesheet" href="/app.css">
 <style>
-  /* index.html과 같은 색·카드 스타일 */
-  :root { --bg: #0f1115; --card: #181b22; --line: #2a2f3a; --text: #e6e8eb; --muted: #8b93a1; --up: #3ecf8e; --down: #ff6b6b; --accent: #5aa9ff; --call: #4ea8de; --put: #f0a04b; --raised: #262e3f; }
+  /* 색·글꼴·표 기본은 app.css */
   .call { color: var(--call); font-weight: 700; } .put { color: var(--put); font-weight: 700; }
   td.strike { text-align: center; background: var(--raised); font-weight: 700; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 -apple-system, "Apple SD Gothic Neo", "Segoe UI", sans-serif; }
   header { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--line); }
   header select, header input { background: var(--card); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 14px; }
   a { color: var(--accent); }

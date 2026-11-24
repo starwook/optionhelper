@@ -86,6 +86,10 @@ data class VolatilityView(
 data class StrategyView(
     val kind: String,
     val label: String,
+    val plainName: String,
+    // 어떤 전망일 때 쓰는 전략인지(BIG_MOVE, UP, DOWN, NOT_DOWN, NOT_UP)와 그 화면 문구
+    val view: String,
+    val viewLabel: String,
     val legs: String,
     val netPremium: Double,
     val feePerShare: Double,
@@ -106,6 +110,9 @@ data class StrategyView(
             return StrategyView(
                 kind = strategy.kind.name,
                 label = strategy.kind.label,
+                plainName = strategy.kind.plainName,
+                view = strategy.kind.view.name,
+                viewLabel = strategy.kind.view.label,
                 legs = strategy.legs.joinToString(" + ") { "${if (it.quantity > 0) "매수" else "매도"} ${legText(it)}" },
                 netPremium = result.netPremium,
                 feePerShare = result.feePerShare,

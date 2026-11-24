@@ -1,0 +1,61 @@
+/* 세 페이지(index, iv, review)가 같이 쓰는 색·글꼴·기본 요소.
+   색은 의미가 있을 때만 쓴다: 이익·상승 = 초록, 손실·하락 = 빨강, 콜 = 파랑, 풋 = 보라, 일정·주의 = 노랑. */
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+:root {
+  --bg: #10151f;
+  --surface: #171d29;
+  --raised: #222a39;
+  --line: #2b3445;
+  --text: #eef1f6;
+  --muted: #a6afc0;
+  --faint: #737e92;
+  --up: #3ecf8e;
+  --down: #f2646b;
+  --call: #5aaeff;
+  --call-bg: rgba(90, 174, 255, .10);
+  --put: #b48cff;
+  --put-bg: rgba(180, 140, 255, .10);
+  --event: #f5c451;
+  --event-bg: rgba(245, 196, 81, .12);
+  --focus: #9ec9ff;
+  /* iv.html·review.html의 예전 이름 */
+  --card: var(--surface);
+  --accent: var(--call);
+  --hv: var(--event);
+}
+
+* { box-sizing: border-box; }
+/* display를 준 블록(.panel, .stack 등)에서도 hidden이 이기게 */
+[hidden] { display: none !important; }
+body {
+  margin: 0; min-height: 100vh; display: flex; flex-direction: column;
+  background: var(--bg); color: var(--text);
+  font: 16px/1.5 "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+main { flex: 1; }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+a { color: var(--call); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.up { color: var(--up); }
+.down { color: var(--down); }
+.call { color: var(--call); }
+.put { color: var(--put); }
+.event { color: var(--event); }
+
+/* 표 */
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 8px 10px; text-align: right; white-space: nowrap; }
+th { font-size: 13px; font-weight: 500; color: var(--muted); }
+tbody tr { border-top: 1px solid var(--line); }
+.left { text-align: left; }
+.empty { padding: 24px 0; color: var(--muted); }
+
+footer { padding: 12px 20px 16px; font-size: 13px; color: var(--faint); border-top: 1px solid var(--line); }
