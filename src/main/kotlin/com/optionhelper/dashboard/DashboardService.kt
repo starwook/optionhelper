@@ -5,6 +5,7 @@ import com.optionhelper.earnings.EarningsService
 import com.optionhelper.macro.MacroCalendar
 import com.optionhelper.macro.MacroCalendarFile
 import com.optionhelper.macro.MacroEvent
+import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.DailyBarService
 import com.optionhelper.marketdata.MarketDataSource
 import com.optionhelper.option.IvHistory
@@ -145,8 +146,9 @@ class DashboardService(
             expiryKst = format(MarketClock.expiryAt(expiry).toInstant(), MarketClock.SEOUL, "KST"),
             hoursToExpiry = hours,
             spot = spot,
+            spotAsOfKst = format(quote.asOf, MarketClock.SEOUL, "KST"),
             open = quote.open,
-            previousClose = quote.previousClose,
+            previousClose = previousClose(bars, today) ?: quote.previousClose,
             atm = atm,
             straddle = straddle,
             expectedMove = expectedMove,
@@ -289,6 +291,12 @@ class DashboardService(
         }
 
     private fun average(vararg values: Double?): Double? = values.filterNotNull().takeIf { it.isNotEmpty() }?.average()
+
+    /** 공식 통합(SIP) 일봉 중 오늘(ET) 전의 마지막 종가. 개장 전 스냅샷의 prevDailyBar는 하루 밀릴 수 있어 이쪽을 우선한다. */
+    private fun previousClose(
+        bars: List<DailyBar>,
+        today: LocalDate,
+    ): Double? = bars.lastOrNull { it.date.isBefore(today) }?.close
 
     private fun format(
         instant: Instant,

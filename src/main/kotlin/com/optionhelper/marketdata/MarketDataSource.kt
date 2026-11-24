@@ -46,9 +46,10 @@ interface MarketDataSource {
 data class StockQuote(
     val symbol: String,
     val price: Double,
-    // 오늘 시가. 장 시작 전이면 null일 수 있다.
+    // 오늘 시가. 장 시작 전이면 null.
     val open: Double?,
     val previousClose: Double?,
+    // 현재가(latestTrade)의 체결 시각. 장 밖이면 프리장·장후 체결일 수 있다.
     val asOf: Instant,
 )
 
