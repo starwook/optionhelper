@@ -14,7 +14,6 @@ import com.optionhelper.pricing.ImpliedVolatilitySolver
 import com.optionhelper.pricing.MarketClock
 import com.optionhelper.pricing.OptionType
 import com.optionhelper.pricing.PricingProperties
-import com.optionhelper.seasonality.Seasonality
 import com.optionhelper.signal.SignalInput
 import com.optionhelper.signal.StrategySignals
 import com.optionhelper.strategy.StrategyMenu
@@ -179,8 +178,6 @@ class DashboardService(
             strategies = strategies(chain, atmStrike, spot, expectedMove),
             earnings = EarningsView(next, next?.let { Earnings.daysUntil(it, today) }, beforeExpiry, stats),
             macro = macro,
-            seasonality = Seasonality.monthStats(bars),
-            currentMonth = today.monthValue,
             signals = signals,
             ivHistory =
                 runCatching {
@@ -218,13 +215,13 @@ class DashboardService(
         today: LocalDate,
         expiry: LocalDate,
     ): MacroEventView {
-        val at = event.date.atTime(event.type.releaseTimeEt).atZone(MarketClock.NEW_YORK).toInstant()
+        val at = event.releaseAt()
         return MacroEventView(
             type = event.type.name,
             label = event.type.label,
             date = event.date,
-            timeEt = at.atZone(MarketClock.NEW_YORK).format(HOUR_MINUTE) + " ET",
-            timeKst = at.atZone(MarketClock.SEOUL).format(HOUR_MINUTE) + " KST",
+            timeEt = at.format(HOUR_MINUTE) + " ET",
+            timeKst = at.withZoneSameInstant(MarketClock.SEOUL).format(HOUR_MINUTE) + " KST",
             daysUntil = MacroCalendar.daysUntil(event, today),
             beforeExpiry = event.reactsBy(expiry),
         )

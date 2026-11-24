@@ -12,5 +12,6 @@ optionhelper:
     source: fake
   earnings:
     source: fake
+    background-refresh: false
   recorder:
     enabled: false

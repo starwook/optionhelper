@@ -12,7 +12,7 @@ data class AlphaVantageProperties(
     val baseUrl: String = "https://www.alphavantage.co",
 )
 
-/** Alpha Vantage 무료 플랜(하루 25회). 호출은 EarningsService가 하루 한 번으로 줄인다. */
+/** Alpha Vantage 무료 플랜(하루 25회). 호출은 EarningsService가 종목당 일주일에 한 번으로 줄인다. */
 @Component
 @ConditionalOnProperty(prefix = "optionhelper.earnings", name = ["source"], havingValue = "alphavantage")
 class AlphaVantageEarningsSource(
@@ -33,7 +33,7 @@ class AlphaVantageEarningsSource(
         val history = query("function" to "EARNINGS", "symbol" to symbol).body(JsonNode::class.java) ?: error("Alpha Vantage 응답이 비었습니다")
         AlphaVantageParser.errorMessage(history)?.let { error("Alpha Vantage: $it") }
 
-        // 바로 이어 부르면 연속 호출 제한에 걸려 깨진 CSV가 온다(2026-11-24 실측). 하루 한 번이라 잠깐 쉰다.
+        // 바로 이어 부르면 연속 호출 제한에 걸려 깨진 CSV가 온다(2026-11-24 실측). 드물게 부르니 잠깐 쉰다.
         Thread.sleep(CALL_GAP_MS)
         val calendar =
             query(

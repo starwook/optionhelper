@@ -15,6 +15,13 @@ class MacroCalendarTest {
         )
 
     @Test
+    fun `발표 시각은 미국 동부 기준 - FOMC 14시 ET는 다음 날 04시 KST`() {
+        val at = MacroEvent(MacroEventType.FOMC, LocalDate.of(2026, 12, 9)).releaseAt()
+        assertThat(at.toLocalTime().toString()).isEqualTo("14:00")
+        assertThat(at.withZoneSameInstant(java.time.ZoneId.of("Asia/Seoul")).toString()).startsWith("2026-12-10T04:00")
+    }
+
+    @Test
     fun `오늘 이후 일정만 날짜순으로, limit만큼`() {
         val upcoming = MacroCalendar.upcoming(events, LocalDate.of(2026, 11, 24), limit = 2)
 

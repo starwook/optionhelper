@@ -31,6 +31,9 @@ enum class WatchedSymbol(val listing: OptionListing) {
         val DEFAULT = NVDA
         val SYMBOLS: List<String> = entries.map { it.name }
 
+        /** 실적발표가 있는 개별 종목(레버리지 ETF SOXL 제외). */
+        val STOCKS: List<String> = (entries - SOXL).map { it.name }
+
         fun of(symbol: String): WatchedSymbol =
             entries.firstOrNull { it.name == symbol.trim().uppercase() } ?: throw UnknownSymbolException(symbol)
     }
