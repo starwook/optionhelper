@@ -45,6 +45,7 @@
   <div id="detail" class="detail"><div class="card muted">왼쪽에서 시각을 고르세요.</div></div>
 </main>
 
+<script src="/glossary.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -78,23 +79,23 @@ async function show(button) {
   $('detail').innerHTML = `
     <div class="stats">
       ${stat('그때 주가', '$' + n2(r.spot), `${esc(r.capturedAtEt)}<br>${esc(r.capturedAtKst)}`)}
-      ${stat('스트래들', r.straddle == null ? '–' : '$' + n2(r.straddle), `ATM ${r.atmStrike ?? '–'} · 만기 ${r.expiry}`)}
-      ${stat('그때 예상 변동폭', m ? '±' + pct(m.pct, 2) : '–', `ATM IV ${pct(r.atmIv)}`)}
+      ${stat('스트래들' + term('LONG_STRADDLE'), r.straddle == null ? '–' : '$' + n2(r.straddle), `ATM${term('atm')} ${r.atmStrike ?? '–'} · 만기 ${r.expiry}`)}
+      ${stat('그때 예상 변동폭' + term('expectedMove'), m ? '±' + pct(m.pct, 2) : '–', `ATM IV ${pct(r.atmIv)}`)}
       ${stat(o.settled ? '만기 종가' : '지금 가격(만기 전)', o.price == null ? '–' : '$' + n2(o.price), `그때 대비 <span class="${cls(o.movePct)}">${signed(o.movePct, 2)}</span>`)}
-      ${stat('실제 ÷ 예상', o.moveVsExpected == null ? '–' : Math.round(o.moveVsExpected * 100) + '%', '100%보다 크면 예상보다 더 움직임')}
+      ${stat('실제 ÷ 예상' + term('realizedVsExpected'), o.moveVsExpected == null ? '–' : Math.round(o.moveVsExpected * 100) + '%', '100%보다 크면 예상보다 더 움직임')}
     </div>
     <div class="card"><h2>그때 전략을 1계약씩 샀다면 ${o.settled ? '(만기 확정)' : '(만기 전, 지금 가격 기준)'} · 토스 수수료 왕복 포함</h2>
       <div class="scroll"><table>
-        <thead><tr><th class="left">전략</th><th>비용</th><th>본전(수수료 포함)</th><th>결과</th></tr></thead>
+        <thead><tr><th class="left">전략</th><th>비용</th><th>본전(수수료 포함)${term('breakeven')}</th><th>결과</th></tr></thead>
         <tbody>${r.strategies.map((s) => {
           const p = results[s.kind + '|' + s.legs];
-          return `<tr><td class="left"><strong>${esc(s.label)}</strong><br><span class="muted">${esc(s.legs)}</span></td>
+          return `<tr><td class="left"><strong>${esc(s.label)}</strong>${term(s.kind)}<br><span class="muted">${esc(s.legs)}</span></td>
             <td>${s.netPremium < 0 ? '받음 ' : ''}$${Math.round(Math.abs(s.netPremium) * 100)}</td>
             <td>${s.breakevensWithFee.map((b) => n2(b.price)).join(' / ')}</td>
             <td class="${cls(p)}"><strong>${money(p)}</strong></td></tr>`;
         }).join('')}</tbody></table></div></div>
     <div class="card"><h2>그때 체인</h2><div class="scroll"><table>
-      <thead><tr><th>콜 매수</th><th>매도</th><th class="call">중간</th><th style="text-align:center">행사가</th><th class="put">중간</th><th>풋 매수</th><th>매도</th></tr></thead>
+      <thead><tr><th>콜 매수${term('bidAsk')}</th><th>매도</th><th class="call">중간${term('mid')}</th><th style="text-align:center">행사가${term('strike')}</th><th class="put">중간</th><th>풋 매수</th><th>매도</th></tr></thead>
       <tbody>${r.chain.map((c) => `<tr class="${c.atm ? 'atm' : ''}">${callLeg(c.call)}<td class="strike">${c.strike}</td>${putLeg(c.put)}</tr>`).join('')}</tbody>
     </table></div></div>`;
 }

@@ -38,7 +38,7 @@
 <header>
   <strong>IV 히스토리</strong>
   <select id="symbol" aria-label="종목"></select>
-  <span class="muted">지금 IV가 지난 1년 중 어디쯤인지, 실제 변동(HV)보다 비싼지 봅니다.</span>
+  <span class="muted">지금 IV가 지난 1년 중 어디쯤인지, 실제 변동(HV)<span class="term-help" data-term="hv" tabindex="0">?</span>보다 비싼지 봅니다.</span>
   <span style="flex:1"></span>
   <a href="/">실시간 화면</a>
   <a href="/review.html">복기</a>
@@ -48,20 +48,20 @@
   <div class="card">
     <h2>1년 IV 추이</h2>
     <div class="legend">
-      <span><span class="swatch" style="background:var(--accent)"></span>IV</span>
-      <span><span class="swatch" style="background:var(--hv)"></span>최근 20일 실제 변동성(HV20)</span>
+      <span><span class="swatch" style="background:var(--accent)"></span>IV<span class="term-help" data-term="iv" tabindex="0">?</span></span>
+      <span><span class="swatch" style="background:var(--hv)"></span>최근 20일 실제 변동성(HV20)<span class="term-help" data-term="hv" tabindex="0">?</span></span>
     </div>
     <div class="chart" id="chart"></div>
     <ul id="warnings"></ul>
   </div>
 
   <div class="card">
-    <h2>보유 옵션 시나리오 · 주가가 그대로일 때 날짜(세타)와 IV에 따라 값이 어떻게 되나</h2>
+    <h2>보유 옵션 시나리오 · 주가가 그대로일 때 날짜(세타<span class="term-help" data-term="theta" tabindex="0">?</span>)와 IV에 따라 값이 어떻게 되나</h2>
     <form id="scenarioForm">
       <label>종류<select name="type"><option value="CALL">콜</option><option value="PUT">풋</option></select></label>
-      <label>행사가<input name="strike" type="number" step="0.5" required></label>
-      <label>만기<input name="expiry" type="date" required style="width:auto"></label>
-      <label>옵션 가격($)<input name="price" type="number" step="0.01" required></label>
+      <label><span>행사가<span class="term-help" data-term="strike" tabindex="0">?</span></span><input name="strike" type="number" step="0.5" required></label>
+      <label><span>만기<span class="term-help" data-term="expiry" tabindex="0">?</span></span><input name="expiry" type="date" required style="width:auto"></label>
+      <label><span>옵션 가격($)<span class="term-help" data-term="premium" tabindex="0">?</span></span><input name="price" type="number" step="0.01" required></label>
       <label>주가($, 비우면 데이터 소스)<input name="spot" type="number" step="0.01"></label>
       <button>계산</button>
     </form>
@@ -89,6 +89,7 @@
   <p class="muted" style="font-size:12px">교과서식 참고 지표이며 투자 조언이 아닙니다.</p>
 </main>
 
+<script src="/glossary.js"></script>
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -111,10 +112,10 @@ async function loadHistory() {
   const h = await getJson(`/api/iv/history?symbol=${encodeURIComponent(symbol)}`);
   const r = h.range;
   $('stats').innerHTML = [
-    stat('지금 IV', pct(h.current), `${h.currentDate ?? ''} · ${esc(h.source)}`),
-    stat('IV Rank', pct(h.rank, 0), '1년 최저 0% ~ 최고 100% 중 위치'),
-    stat('IV 퍼센타일', pct(h.percentile, 0), '1년 중 지금보다 낮았던 날 비율'),
-    stat('IV ÷ HV20', ratio(h.ivHvRatio), `HV20 ${pct(h.hv20)} · 1보다 크면 실제 변동보다 비쌈`),
+    stat('지금 IV' + term('iv'), pct(h.current), `${h.currentDate ?? ''} · ${esc(h.source)}`),
+    stat('IV Rank' + term('ivRank'), pct(h.rank, 0), '1년 최저 0% ~ 최고 100% 중 위치'),
+    stat('IV 퍼센타일' + term('ivPercentile'), pct(h.percentile, 0), '1년 중 지금보다 낮았던 날 비율'),
+    stat('IV ÷ HV20' + term('ivHvRatio'), ratio(h.ivHvRatio), `HV20 ${pct(h.hv20)} · 1보다 크면 실제 변동보다 비쌈`),
     stat('1년 범위', r ? `${pct(r.min, 0)}~${pct(r.max, 0)}` : '–', r ? `중앙값 ${pct(r.median)} · ${r.samples}일` : ''),
   ].join('');
   const pts = h.points.map((p) => ({ x: new Date(p.date).getTime(), iv: p.iv * 100, hv: p.hv20 == null ? null : p.hv20 * 100 }));
@@ -130,7 +131,7 @@ async function loadHistory() {
 // ── 관심 종목 비교 ──
 async function loadSummary() {
   const rows = await getJson('/api/iv/summary');
-  $('summary').innerHTML = `<thead><tr><th class="left">종목</th><th>지금 IV</th><th>IV Rank</th><th>퍼센타일</th><th>HV20</th><th>IV ÷ HV</th><th>기록</th></tr></thead><tbody>
+  $('summary').innerHTML = `<thead><tr><th class="left">종목</th><th>지금 IV</th><th>IV Rank${term('ivRank')}</th><th>퍼센타일${term('ivPercentile')}</th><th>HV20${term('hv')}</th><th>IV ÷ HV${term('ivHvRatio')}</th><th>기록</th></tr></thead><tbody>
     ${rows.map((r) => `<tr data-symbol="${esc(r.symbol)}"><td class="left"><strong>${esc(r.symbol)}</strong></td>
       ${r.error ? `<td colspan="6" class="muted">${esc(r.error)}</td>` : `<td>${pct(r.current)}</td><td>${pct(r.rank, 0)}</td><td>${pct(r.percentile, 0)}</td><td>${pct(r.hv20)}</td><td>${ratio(r.ivHvRatio)}</td><td class="muted">${r.samples}일</td>`}</tr>`).join('')}</tbody>`;
   $('summary').querySelectorAll('tbody tr').forEach((tr) => tr.addEventListener('click', () => { $('symbol').value = tr.dataset.symbol; loadHistory(); }));
@@ -150,9 +151,9 @@ async function runScenario(e) {
     const cell = (p) => `<td>$${n2(p)} <span class="${p >= now ? 'up' : 'down'}">${p >= now ? '+' : '−'}$${Math.round(Math.abs(p - now) * 100)}</span></td>`;
     $('scenario').innerHTML = `
       <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} · 주가 $${n2(v.spot)} (${esc(v.spotSource)}) ·
-        IV <strong>${pct(s.impliedVol)}</strong> · 델타 ${n2(s.delta)} ·
-        세타 하루 <strong>−$${Math.round(Math.abs(s.thetaPerDay) * 100)}</strong>/계약 ·
-        IV 1%p당 $${Math.round(s.vegaPerPoint * 100)}/계약</p>
+        IV${term('iv')} <strong>${pct(s.impliedVol)}</strong> · 델타${term('delta')} ${n2(s.delta)} ·
+        세타${term('theta')} 하루 <strong>−$${Math.round(Math.abs(s.thetaPerDay) * 100)}</strong>/계약 ·
+        IV 1%p당(베가${term('vega')}) $${Math.round(s.vegaPerPoint * 100)}/계약</p>
       <div class="scroll"><table>
         <thead><tr><th class="left">날짜 (장 마감)</th><th>남은 거래일</th>${s.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
         <tbody>${s.rows.map((r) => `<tr><td class="left">${r.date}</td><td class="muted">${r.tradingDaysLeft.toFixed(1)}</td>${r.prices.map(cell).join('')}</tr>`).join('')}</tbody>
@@ -181,10 +182,10 @@ async function runOpenEstimate(e) {
     $('openEstimate').innerHTML = `
       <p>${esc(v.symbol)} ${v.strike} ${v.type === 'CALL' ? '콜' : '풋'} ·
         프리마켓 $${n2(v.premarket)} <span class="${o.gap >= 0 ? 'up' : 'down'}">${signedPct(o.gap)}</span> (전일 종가 $${n2(v.previousClose)}, ${esc(v.spotSource)}${v.spotAsOf ? ' · 체결 ' + timeIn(v.spotAsOf, 'Asia/Seoul') : ''}) ·
-        전일 IV ${pct(o.impliedVol)} · 델타 ${n2(o.delta)} · 주가 $1당 델타 +${n2(o.gamma)}</p>
+        전일 IV ${pct(o.impliedVol)} · 델타 ${n2(o.delta)} · 주가 $1당 델타 +${n2(o.gamma)}${term('gamma')}</p>
       <p class="muted">기준 시각(한국): ${timeIn(o.basisAt, 'Asia/Seoul')} ${timeIn(o.basisAt, 'America/New_York').endsWith('09:30') ? '개장' : '· 장중이라 지금 기준'}</p>
       <div class="scroll"><table>
-        <thead><tr><th class="left">개장 때 주가</th><th>주가</th><th>내재가치</th>${o.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
+        <thead><tr><th class="left">개장 때 주가</th><th>주가</th><th>내재가치${term('intrinsic')}</th>${o.levels.map((l) => `<th>${esc(l.label)}<br><span class="muted">IV ${pct(l.iv)}</span></th>`).join('')}</tr></thead>
         <tbody>${o.rows.map(row).join('')}</tbody>
       </table></div>
       <ul>${v.notes.map((n) => `<li>${esc(n)}</li>`).join('')}<li>가격은 주당입니다. 내재가치는 옵션 가격의 하한선입니다.</li></ul>`;
