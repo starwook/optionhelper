@@ -13,11 +13,15 @@ import java.time.OffsetDateTime
  * - 옵션 스냅샷: snapshots{심볼: {latestQuote{bp, ap}, impliedVolatility, greeks{delta}}}, next_page_token
  * - 주식 스냅샷: latestTrade{p, t}, prevDailyBar{c}
  * - 일봉: bars{심볼: [{t, o, h, l, c}]}, next_page_token
+ * - 옵션 일봉: bars{OCC 심볼: [{t, c, ...}]}, next_page_token (docs/외부API-명세.md 1-4)
  */
 object AlpacaParser {
     data class OptionPage(val quotes: List<Pair<OccSymbol, OptionQuote>>, val nextPageToken: String?)
 
     data class BarPage(val bars: List<DailyBar>, val nextPageToken: String?)
+
+    /** (날짜, 계약) → 그날 종가. */
+    data class OptionBarPage(val closes: Map<Pair<LocalDate, OccSymbol>, Double>, val nextPageToken: String?)
 
     fun optionSnapshots(root: JsonNode): OptionPage {
         val quotes =
@@ -65,6 +69,18 @@ object AlpacaParser {
                 )
             }
         return BarPage(bars, root.path("next_page_token").textOrNull())
+    }
+
+    fun optionBars(root: JsonNode): OptionBarPage {
+        val closes =
+            root.path("bars").fields().asSequence().flatMap { (symbol, bars) ->
+                val occ = OccSymbol.parse(symbol) ?: return@flatMap emptySequence()
+                bars.asSequence().map { bar ->
+                    val date = OffsetDateTime.parse(bar.path("t").asText()).toLocalDate()
+                    (date to occ) to bar.path("c").asDouble()
+                }
+            }.toMap()
+        return OptionBarPage(closes, root.path("next_page_token").textOrNull())
     }
 
     private fun JsonNode.doubleOrNull(): Double? = if (isNumber) asDouble() else null

@@ -59,4 +59,24 @@ class AlpacaParserTest {
         assertThat(page.bars.single().date).isEqualTo(LocalDate.of(2026, 11, 19))
         assertThat(page.bars.single().close).isEqualTo(1.5)
     }
+
+    @Test
+    fun `옵션 일봉 - 만기된 계약도 날짜·계약별 종가로 (실측 2026-11-24 응답 모양)`() {
+        val json =
+            """
+            {"bars": {"NVDA251219C00180000": [
+               {"c": 15.25, "h": 16.79, "l": 14.25, "n": 743, "o": 14.9, "t": "2025-11-17T05:00:00Z", "v": 1262, "vw": 15.46},
+               {"c": 12.7, "h": 14.43, "l": 12, "n": 1081, "o": 13.5, "t": "2025-11-18T05:00:00Z", "v": 5541, "vw": 13.17}
+             ]},
+             "next_page_token": null}
+            """.trimIndent()
+        val page = AlpacaParser.optionBars(mapper.readTree(json))
+        val (key, close) = page.closes.entries.first { it.key.first == LocalDate.of(2025, 11, 18) }
+
+        assertThat(page.closes).hasSize(2)
+        assertThat(close).isEqualTo(12.7)
+        assertThat(key.second.strike).isEqualTo(180.0)
+        assertThat(key.second.type).isEqualTo(OptionType.CALL)
+        assertThat(page.nextPageToken).isNull()
+    }
 }

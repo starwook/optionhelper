@@ -13,7 +13,8 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** IV 기록이 무엇을 잰 값인지. 화면에 그대로 표시한다. */
 enum class IvBasis(val label: String) {
-    THIRTY_DAY("데이터 소스의 30일 IV"),
+    // 실제 설명은 데이터 소스가 준다(MarketDataSource.historicalIvLabel)
+    THIRTY_DAY("데이터 소스가 준 과거 IV"),
     NEAREST_ATM("앱이 쌓은 스냅샷의 가장 가까운 만기 ATM IV (30일 IV 아님, 만기 직전엔 출렁임)"),
 }
 
@@ -102,7 +103,7 @@ class IvHistoryService(
             symbol = sym,
             source = source.feed.name,
             basis = basis.takeIf { points.isNotEmpty() },
-            basisLabel = basis.label.takeIf { points.isNotEmpty() },
+            basisLabel = (if (basis == IvBasis.THIRTY_DAY) source.historicalIvLabel else basis.label).takeIf { points.isNotEmpty() },
             points = points,
             current = current?.iv,
             currentDate = current?.date,
