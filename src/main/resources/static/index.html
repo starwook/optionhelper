@@ -127,9 +127,9 @@
 </style>
 </head>
 <body>
+<div class="approx-banner">옵션 호가·IV·그릭스는 모두 <strong>이론가(근사값)</strong>이고 실제 호가가 아닙니다. 주가도 주식 추종 선물 가격이라 실제 주가와 조금 다를 수 있습니다.<span class="term-help" data-term="approximate" tabindex="0">?</span></div>
 <div class="bar">
-  <input id="symbol" list="watchlist" aria-label="종목" placeholder="종목">
-  <datalist id="watchlist"></datalist>
+  <select id="symbol" aria-label="종목"></select>
   <span id="status" class="status"></span>
   <span id="error" class="error" hidden></span>
   <span class="grow"></span>
@@ -233,7 +233,21 @@
 const POLL_MS = 10000;
 const CHART_POLL_MS = 60000; // 5분봉이라 1분마다면 충분. 선 끝은 10초마다 현재가로 이어 붙인다
 const TABS = ['today', 'strategy', 'chain', 'schedule'];
-const state = { symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null, range: 'DAY', chart: null };
+const state = { symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null, range: 'DAY', chart: null, live: null };
+let quoteSource = null;
+
+/** 맨 위 현재가만 서버가 밀어 준다(SSE, 약 1초). 나머지 화면은 10초마다 다시 받는다. */
+function openQuoteStream() {
+  if (quoteSource) quoteSource.close();
+  state.live = null;
+  quoteSource = new EventSource(`/api/quote-stream?symbol=${encodeURIComponent(state.symbol)}`);
+  quoteSource.onmessage = (e) => {
+    const q = JSON.parse(e.data);
+    if (q.symbol !== state.symbol.toUpperCase()) return;
+    state.live = q;
+    renderQuote();
+  };
+}
 
 // ── 포맷 ──
 const $ = (id) => document.getElementById(id);
@@ -302,10 +316,10 @@ function render(d) {
 
 // ── 상단 바 ──
 function renderHeader(d) {
-  $('symbol').placeholder = d.symbol;
+  $('symbol').value = d.symbol;
   renderExpiries(d);
   const feedClass = d.feed.kind === 'REALTIME' ? '' : 'feed-warn';
-  $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)}${d.feed.kind === 'INDICATIVE' ? term('indicative') : ''})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
+  $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)}${d.feed.kind === 'APPROXIMATE' ? term('approximate') : ''})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
   $('asOf').textContent = `${hm(d.asOfEt)} / ${hm(d.asOfKst)}`;
 }
 
@@ -313,21 +327,27 @@ function renderHeader(d) {
 function renderQuote() {
   const d = state.data, c = state.chart;
   if (!d || d.symbol !== state.symbol.toUpperCase()) return;
-  const change = d.previousClose ? d.spot - d.previousClose : null;
+  // 실시간 현재가(SSE)가 있으면 그걸, 없으면 대시보드 값을 쓴다
+  const live = state.live?.symbol === d.symbol ? state.live : null;
+  const spot = live ? live.price : d.spot;
+  const prev = live?.previousClose ?? d.previousClose;
+  const spotTime = new Date(live ? live.asOf : d.asOf);
+  const change = prev ? spot - prev : null;
   $('qSym').textContent = d.symbol;
-  $('qPrice').textContent = '$' + n2(d.spot);
-  // 장 밖이면 현재가는 프리장·장후 체결가라 체결 시각을 같이 보여 준다
-  $('qChg').innerHTML = (change == null ? '' : `<span class="${tone(change)}">${change >= 0 ? '+' : '−'}$${n2(Math.abs(change))} (${signed(change / d.previousClose, 2)})</span>`)
-    + (d.marketOpen ? '' : ` <span class="feed-warn" style="font-size:14px;font-weight:400">장 밖 체결 ${esc(hm(d.spotAsOfKst))}</span>`);
+  $('qPrice').textContent = '$' + n2(spot);
+  // 장 밖이면 정규장 밖 가격이라 시각을 같이 보여 준다
+  const kst = spotTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
+  $('qChg').innerHTML = (change == null ? '' : `<span class="${tone(change)}">${change >= 0 ? '+' : '−'}$${n2(Math.abs(change))} (${signed(change / prev, 2)})</span>`)
+    + (d.marketOpen ? '' : ` <span class="feed-warn" style="font-size:14px;font-weight:400">장 밖 ${esc(kst)} KST</span>`);
   if (!c || c.error || c.symbol !== d.symbol) {
     $('qChart').innerHTML = `<div class="empty">${esc(c?.error || '차트 불러오는 중…')}</div>`;
     $('qNote').textContent = '';
     return;
   }
   const points = c.points.map((p) => [new Date(p.time).getTime(), p.price]);
-  // 장중이면 선 끝을 대시보드 현재가로 이어 붙인다(차트는 1분, 현재가는 10초마다 갱신)
-  const today = new Date(d.asOf).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  if (d.marketOpen && (c.range !== 'DAY' || c.sessionDate === today)) points.push([new Date(d.asOf).getTime(), d.spot]);
+  // 장중이면 선 끝을 실시간 현재가로 이어 붙인다(차트는 1분, 현재가는 약 1초마다 갱신)
+  const today = spotTime.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  if (d.marketOpen && (c.range !== 'DAY' || c.sessionDate === today)) points.push([spotTime.getTime(), spot]);
   if (points.length < 2) { $('qChart').innerHTML = '<div class="empty">차트 데이터가 없습니다.</div>'; $('qNote').textContent = ''; return; }
   const m = d.expectedMove;
   const day = c.range === 'DAY';
@@ -335,7 +355,7 @@ function renderQuote() {
     base: day ? c.previousClose : null,
     // 1일은 x축을 장 마감까지 잡아, 장중엔 선이 하루 중 어디까지 왔는지 보이게
     xEnd: day && c.sessionClose ? new Date(c.sessionClose).getTime() : null,
-    band: m ? [d.spot - m.dollars, d.spot + m.dollars] : null,
+    band: m ? [spot - m.dollars, spot + m.dollars] : null,
     timeLabel: day
       ? (t) => new Date(t).toLocaleTimeString('ko-KR', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET'
       : (t) => new Date(t).toLocaleDateString('ko-KR', { timeZone: 'America/New_York', year: '2-digit', month: 'numeric', day: 'numeric' }),
@@ -346,7 +366,7 @@ function renderQuote() {
   $('qNote').textContent = [
     session,
     day && c.previousClose ? `점선 = 전일 종가 ${n2(c.previousClose)}` : null,
-    m ? `회색 띠 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(d.spot - m.dollars)} ~ ${n2(d.spot + m.dollars)}` : null,
+    m ? `회색 띠 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(spot - m.dollars)} ~ ${n2(spot + m.dollars)}` : null,
   ].filter(Boolean).join(' · ');
 }
 
@@ -675,11 +695,11 @@ async function init() {
   try {
     const wl = await fetch('/api/watchlist').then((r) => r.json());
     state.symbol = wl.default;
-    $('watchlist').innerHTML = wl.symbols.map((s) => `<option value="${esc(s)}">`).join('');
+    $('symbol').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
+    $('symbol').value = state.symbol;
   } catch (e) { /* 기본 종목(NVDA)으로 진행 */ }
   $('symbol').addEventListener('change', (e) => {
-    const v = e.target.value.trim().toUpperCase();
-    if (v) { state.symbol = v; state.expiry = null; state.chart = null; e.target.value = ''; load(); loadChart(); }
+    state.symbol = e.target.value; state.expiry = null; state.chart = null; load(); loadChart(); openQuoteStream();
   });
   $('ranges').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-range]');
@@ -697,6 +717,7 @@ async function init() {
   window.addEventListener('resize', redrawRange);
   load();
   loadChart();
+  openQuoteStream();
   setInterval(load, POLL_MS);
   setInterval(loadChart, CHART_POLL_MS);
 }

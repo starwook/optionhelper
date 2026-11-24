@@ -1,6 +1,7 @@
 package com.optionhelper.volatility
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.optionhelper.watchlist.WatchedSymbol
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -11,7 +12,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import java.time.LocalDate
 
-/** 가짜 소스의 일별 IV → DB 저장 → IV Rank·HV 계산 → JSON, 그리고 보유 옵션 시나리오. */
+/** 이론가 일별 IV → DB 저장 → IV Rank·HV 계산 → JSON, 그리고 보유 옵션 시나리오. */
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
@@ -50,7 +51,7 @@ class IvHistoryApiTest {
     @Test
     fun `관심 종목 IV 비교`() {
         val rows = json("/api/iv/summary")
-        assertThat(rows.size()).isEqualTo(10)
+        assertThat(rows.size()).isEqualTo(WatchedSymbol.SYMBOLS.size)
         assertThat(rows.all { it["error"].isNull }).isTrue()
     }
 

@@ -15,6 +15,8 @@
 
 ## 1. Alpaca Market Data (`marketdata/alpaca`)
 
+> **2026-11-25: 코드에서 제거.** Alpaca 시세는 재배포 불가(데이터소스-조사 9절)라 공개 사이트로 바꾸면서 `marketdata/alpaca` 구현을 지웠다. 본인 로그인 시 실제 시세를 붙일 때(TODO) 이 절과 git 기록(커밋 `e2e30f0` 이전)을 근거로 다시 만든다.
+
 ### 공통
 
 | 항목 | 내용 | 확인 |
@@ -163,6 +165,37 @@
 - [4] https://docs.alpaca.markets/docs/about-market-data-api
 - [5] https://docs.alpaca.markets/docs/market-data-faq
 - [6] https://docs.alpaca.markets/docs/historical-option-data
+
+### 1-5. WebSocket 실시간 스트림 (2026-11-25, 공식 문서, 실측 전)
+
+현재 코드는 WebSocket을 쓰지 않는다(브라우저 10초 폴링 → 서버 REST, 5초 캐시). 아래는 푸시로 바꿀 수 있는지 보려고 공식 문서에서 확인한 값이다. (앞서 같은 날 이 절을 전부 "미확인"으로 만들었다가 사용자가 조사를 허락해 채웠다.)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 주식 스트림 URL | `wss://stream.data.alpaca.markets/v2/{feed}` | 공식 [7] |
+| 주식 무료(Basic) | 실시간 범위 IEX. `sip`는 Algo Trader Plus($99/월)부터 | 공식 [4] |
+| 주식 구독 한도 (Basic) | **30 심볼** ("Websocket subscriptions" 항목) | 공식 [4] |
+| 동시 연결 수 | 플랜 표에는 없음. 일반 규칙으로 "구독 많은 플랜 또는 구독 없음은 한도 1"이라고만 나옴 → 무료는 **1개로 가정** | 공식 [8], 일부 미확인 |
+| 주식 메시지 종류 | trades `t`, quotes `q`, 분봉 `b`, dailyBars `d`, updatedBars `u`, 정정 `c`, 취소 `x`, LULD `l`, 거래 상태 `s`, 주문 불균형 `i` | 공식 [7] |
+| 옵션 스트림 URL | `wss://stream.data.alpaca.markets/v1beta1/{feed}` (`indicative` 또는 `opra`) | 공식 [9] |
+| 옵션 무료(Basic) | `indicative`만 가능, **200 quotes**. `opra`는 Algo Trader Plus(1000 quotes) | 공식 [4] |
+| 옵션 메시지 종류 | trades `t`, quotes `q`만. 봉은 불가(오류 410). `*` 구독 불가(오류 413) | 공식 [9][8] |
+| 인증 메시지 | `{"action":"auth","key":"{KEY_ID}","secret":"{SECRET_KEY}"}`, 연결 후 10초 안에. 성공 응답 `[{"T":"success","msg":"authenticated"}]`. 옵션 페이지에는 별도 인증 예시가 없어 같은 형식으로 가정 | 공식 [8][7], 옵션은 미확인 |
+| 구독 메시지 | 주식 `{"action":"subscribe","trades":["AAPL"],"quotes":["AMD"]}`. 옵션 구독 예시는 문서에 없음, 같은 형식에 trades/quotes만 가정 | 공식 [7], 옵션은 미확인 |
+| 메시지 형식 | 주식: JSON 기본, `application/msgpack`도 가능. **옵션: msgpack만**(JSON이면 오류 412, `Content-Type: application/msgpack` 필요) → Kotlin에 msgpack 라이브러리 필요 | 공식 [8][9] |
+| 미확인 | 30·200 한도를 trades/quotes 채널을 합쳐 세는지 채널별로 세는지, 주식과 옵션 한도가 따로인지(표에는 별개 항목), 무료 연결 수의 정확한 값 | 실측 필요 |
+
+- [7] https://docs.alpaca.markets/docs/real-time-stock-pricing-data
+- [8] https://docs.alpaca.markets/docs/streaming-market-data
+- [9] https://docs.alpaca.markets/docs/real-time-option-data
+
+**indicative가 얼마나 가공됐나 (2026-11-25, 공식 문서·포럼 조사)**
+- 공식 표현은 한 줄뿐: "OPRA 원본의 무료 파생물이며 실제 OPRA 호가가 아니라 참고용 파생값". 공식 [10]
+- 가공 방식(반올림, 샘플링, 갱신 주기, 호가 수량 포함 여부): **확인 불가**. 문서·포럼에 설명 없음.
+- OPRA와의 호가 차이 크기(직원 설명, 사용자 측정): **확인 불가**. 못 찾음. → 실측 필요(같은 시각 IBKR OPRA 호가와 비교).
+- 체결: indicative 체결은 파생값이고 **15분 지연**. 호가의 지연 여부는 문서에 없음(기존 정리 "호가 실시간"은 문서 근거 없이 쓴 것일 수 있어 정정: 호가 지연 여부 미확인). 공식 [10]
+- [10] https://docs.alpaca.markets/docs/historical-option-data
+- **실측 (2026-11-25 03:12 KST = 미국 동부 11/24 13:12, 정규장 중)**: NVDA 옵션 `indicative` 스냅샷 8개 계약의 `latestQuote.t`가 호출 시각과 1초 안팎 차이(실시간으로 갱신됨). 같은 계약의 `latestTrade.t`는 17~50분 전. 주식 IEX 스냅샷도 호가·체결 시각이 호출 시각과 1초 안. → **호가 타임스탬프는 실시간, 체결은 지연**. 다만 이 값이 실제 OPRA 호가와 같은 값인지(가공 정도)는 토스·IBKR 호가와의 비교가 필요해 여전히 미확인. 실측
 
 ---
 
@@ -447,6 +480,20 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 - [L4] https://interactivebrokers.github.io/tws-api/historical_bars.html
 - [L5] https://interactivebrokers.github.io/tws-api/historical_limitations.html
 
+### 3-10-1. 실시간 푸시 구독과 줄 수 계산 (2026-11-25)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| `reqMktData`가 주식·옵션 모두 푸시하는가 | 이 문서 3-4(주식)·3-6(옵션)의 `reqMktData(..., snapshot=false)`는 구독형이라 값이 바뀔 때마다 `tickPrice`·`tickSize`·`tickOptionComputation` 콜백이 온다. `cancelMktData`로 해지할 때까지 유지. 주식·옵션 둘 다 같은 방식 | 공식 [21][25] (이 문서 3-4, 3-6) |
+| 줄 수 한도 | 기본 100줄, 계약 1개 구독 = 1줄. 넘으면 오류 101. 늘리려면 수수료·Quote Booster(데이터소스-조사: 100줄당 월 $30) | 공식 [18][28] (3-8) |
+| 체인 전체를 구독하면 | 체인 전체는 수백 줄이라 불가. 만기 1개 ATM ±10칸 = 콜·풋 42줄(데이터소스-조사 2026-11-20 계산) | 계산, 공식 [28] 기준 |
+| 종목당 필요 줄 | 주식 1줄 + 옵션 약 42줄(만기 1개, ATM ±10칸) ≈ 43줄 | 계산 |
+| 종목 수별 | 2종목 ≈ 86줄 → 100줄 이내. 3종목 ≈ 129줄 → 초과. 3~5종목을 동시에 보려면 ATM ±5칸(콜·풋 22줄+주식 1줄=23줄)으로 줄이면 4종목 92줄. 5종목은 옵션 칸수를 더 줄이거나 줄 추가 필요 | 계산 (정확한 최소 칸수는 실측) |
+| 요청 속도 | 초당 (줄 수÷2)건 → 기본 50건. 43줄 구독은 1초 안에 끝남 | 공식 [28] (3-8) |
+| 미확인 | 한 종목 옵션 줄 수에 기초자산 주식 줄이 포함돼 그릭 계산에 쓰이는지(주식 구독은 어차피 1줄), 호가창·실시간 봉과 줄 공유 여부는 구현 시 실측 | 미확인 |
+
+---
+
 ### 3-11. 구현 전에 실측으로 채울 것
 
 `TwsApi.jar`를 받은 뒤 `javap`나 IDE로 `EWrapper`·`EClientSocket`·`ContractDetails`를 열면 대부분 바로 확인된다.
@@ -469,3 +516,52 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 4 | `AlpacaParser.bars` | 일봉 `t`를 `OffsetDateTime.parse(...).toLocalDate()`로 UTC 날짜로 쓴다. 일봉 `t`가 뉴욕 자정(04:00Z/05:00Z)이면 UTC 날짜와 뉴욕 날짜가 같아 문제없다. 다만 오프셋 규칙은 문서에 명시돼 있지 않음 | 현재 영향 없음으로 판단, 실측 필요 |
 | 5 | `AlphaVantageParser.errorMessage` | `Note`·`Error Message` 키는 이번 조사에서 확인 못 했고, 실측된 건 `Information`뿐이다. 세 키를 다 보는 지금 방식은 안전한 쪽 | 영향 없음 |
 | 6 | 이전 문서 3장 | "Gateway 실계좌 4001"은 공식 문서에서 확인되지 않았다(위 3-2). 또 과거 IV(`OPTION_IMPLIED_VOLATILITY`)는 옵션 계약이 아니라 **주식 계약**으로 요청해야 한다(3-7) | IBKR 구현 시 주의 |
+
+---
+
+## 5. Hyperliquid (`marketdata/hyperliquid`, 2026-11-25)
+
+공개 사이트의 기초자산 가격. 키·인증 없음. 옵션은 이 가격으로 우리가 계산한 근사값이다(`marketdata/model`).
+근거: GPT 답변(공식 문서 링크 제시)과 같은 날 실측. 공식 문서 [H1] [H2] [H3] [H4].
+
+### 5-1. 시장 목록·현재 상태 — `POST https://api.hyperliquid.xyz/info`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 전체 목록 | `{"type":"allPerpMetas"}` | 실측 |
+| 배포자(DEX)별 목록+상태 | `{"type":"metaAndAssetCtxs","dex":"xyz"}` → `[meta, ctxs]`. `meta.universe[i]`와 `ctxs[i]`가 같은 순서 | GPT [H3], 실측 |
+| `universe[i]` | `name`("xyz:NVDA"), `szDecimals`, `maxLeverage`, `isDelisted`(상장폐지면 true) | 실측 |
+| `ctxs[i]` | `markPx`, `oraclePx`, `midPx`(호가 없으면 null), `prevDayPx`(24시간 전 가격, 미국 전일 종가 아님), `dayNtlVlm`(24시간 거래대금, 산출 구간 정의는 문서에 없음), `funding`, `openInterest`, `premium`, `impactPxs`, `dayBaseVlm`. 값은 모두 **문자열** | 실측 |
+| 코드가 쓰는 것 | 웹소켓 값이 아직 없거나 60초보다 오래됐을 때 대신 `markPx`(없으면 `midPx`) | |
+
+### 5-2. 실시간 가격 — 웹소켓 `wss://api.hyperliquid.xyz/ws`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 구독 | `{"method":"subscribe","subscription":{"type":"allMids","dex":"xyz"}}`. `dex`를 빼면 첫 번째 perp DEX(HIP-3 아님)를 고른다 | GPT [H1], 실측 |
+| 구독 확인 | `{"channel":"subscriptionResponse","data":{...구독 메시지...}}` | 실측 |
+| 가격 메시지 | `{"channel":"allMids","data":{"mids":{"xyz:NVDA":"152.305", ...}}}`. xyz 전 종목(실측 149개)이 한 메시지에 온다. 값은 문자열 | 실측 |
+| 주기 | 실측 2026-11-24 14:37 ET에 약 12초 간격(정해진 주기는 문서에 없음) | 실측 |
+| 코드가 쓰는 것 | 종목별 `activeAssetCtx` 구독(11개), `ctx.markPx`를 현재가로(2026-11-25, 처음엔 `allMids`였으나 12초 간격이라 바꿈) | |
+| 공식 권장 | 공식 문서는 `allMids` 대신 `fastAssetCtxs`를 안내한다고 함. 형식 미확인이라 안 씀 | GPT, 미확인 |
+| 채널별 빈도(실측 2026-11-24 15:09 ET, 20초) | `allMids`(dex 전체) 2개(≈12초 간격), `l2Book` 2개, `trades` 13개, **`activeAssetCtx` 20개(≈1초)**, **`bbo` 164개(≈0.1초)**. 코인별 구독은 `{"type":"activeAssetCtx","coin":"xyz:NVDA"}`, `{"type":"bbo","coin":"xyz:NVDA"}` | 실측 |
+| `activeAssetCtx` 메시지 | `{"channel":"activeAssetCtx","data":{"coin":"xyz:NVDA","ctx":{markPx, midPx, oraclePx, prevDayPx, dayNtlVlm, funding, openInterest, premium, ...}}}`. Hyperliquid 화면의 Mark·Oracle·24h Change(= markPx 대비 prevDayPx)와 같은 값 | 실측 |
+| `bbo` 메시지 | `{"channel":"bbo","data":{"coin":"xyz:NVDA","time":ms,"bbo":[{px,sz,n}(매수1호가),{px,sz,n}(매도1호가)]}}` | 실측 |
+| 한도 | IP당 연결 10개, 분당 신규 연결 30개, 구독 1000개, 분당 메시지 2000개 | 공식 [H4] |
+| 끊김·핑 규칙 | 서버가 유휴 연결을 끊는 시간, ping 형식 | **미확인**. 코드는 끊기면 다시 연결한다 |
+
+### 5-3. 봉 — `POST /info {"type":"candleSnapshot","req":{"coin":"xyz:NVDA","interval":"1d","startTime":ms,"endTime":ms}}`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 응답 | 배열. `t`(시작 ms), `T`(끝 ms), `o/h/l/c`(문자열), `v`, `n`, `s`, `i` | GPT [H2], 실측 |
+| 1d 봉 경계 | **UTC 자정~자정**(뉴욕 정규장 마감이 아님). 주말에도 봉이 있다(NVDA 1년에 378개) | 실측 |
+| 개수 한도 | 요청당 최대 500개, 조회 가능한 최근 봉 최대 5000개 | GPT [H2] |
+| 과거 범위 | 상장일부터. 실측: `xyz:NVDA` 2025-11-12, `xyz:SNDK` 2026-01-12, `xyz:SKHY` 2026-07-09, `xyz:SOXL` 2026-08-06 | 실측 |
+| 5m 봉 | 같은 형식, 24시간 이어짐(정규장 밖도 있음) | 실측 |
+| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에. 전일 종가 = 전 거래일 마지막 5분봉(15:55 시작) 종가 = 16:00 ET 가격 | |
+
+- [H1] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
+- [H2] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
+- [H3] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals
+- [H4] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits

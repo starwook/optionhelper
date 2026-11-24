@@ -20,8 +20,11 @@ server:
 
 optionhelper:
   market-data:
-    # fake(키 없이 화면 확인) | alpaca(무료) | ibkr(계좌 준비 후 추가 예정)
-    source: fake
+    # hyperliquid(공개 사이트, 키 없음) | fake(네트워크 없이 화면 확인). 옵션은 둘 다 모델 이론가.
+    # TODO(로그인): 실제 시세(IBKR/Alpaca)는 재배포 불가라 소유자 로그인 기능과 함께 추가한다.
+    source: hyperliquid
+    hyperliquid:
+      dex: xyz
   earnings:
     # fake | alphavantage
     source: fake

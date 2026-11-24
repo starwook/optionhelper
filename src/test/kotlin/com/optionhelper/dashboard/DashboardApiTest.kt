@@ -28,7 +28,7 @@ class DashboardApiTest {
         val d = objectMapper.readTree(body)
 
         assertThat(d["symbol"].asText()).isEqualTo("NVDA")
-        assertThat(d["feed"]["kind"].asText()).isEqualTo("SIMULATED")
+        assertThat(d["feed"]["kind"].asText()).isEqualTo("APPROXIMATE")
         val atm = d["atm"]
         val straddle = atm["call"]["mid"].asDouble() + atm["put"]["mid"].asDouble()
         assertThat(d["straddle"].asDouble()).isCloseTo(straddle, within(1e-9))
@@ -49,5 +49,11 @@ class DashboardApiTest {
             status { isOk() }
             jsonPath("$.default") { value("NVDA") }
         }
+    }
+
+    @Test
+    fun `고정 목록 밖 종목은 400`() {
+        mockMvc.get("/api/dashboard?symbol=TSLA").andExpect { status { isBadRequest() } }
+        mockMvc.get("/api/stock-chart?symbol=TSLA").andExpect { status { isBadRequest() } }
     }
 }
