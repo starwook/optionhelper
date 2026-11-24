@@ -73,4 +73,12 @@ class EarningsTest {
         assertThat(next.date).isEqualTo(d("2027-02-24"))
         assertThat(Earnings.daysUntil(next, d("2026-11-20"))).isEqualTo(96)
     }
+
+    @Test
+    fun `발표 기준 시각 - 장 마감 후는 마감 시각, 장 시작 전은 개장 시각, 미상은 없음`() {
+        val day = java.time.LocalDate.of(2026, 12, 9)
+        assertThat(EarningsEvent("AVGO", day, EarningsTiming.AFTER_CLOSE).referenceTime()!!.toLocalTime().toString()).isEqualTo("16:00")
+        assertThat(EarningsEvent("AVGO", day, EarningsTiming.BEFORE_OPEN).referenceTime()!!.toLocalTime().toString()).isEqualTo("09:30")
+        assertThat(EarningsEvent("AVGO", day, EarningsTiming.UNKNOWN).referenceTime()).isNull()
+    }
 }

@@ -1,7 +1,9 @@
 package com.optionhelper.earnings
 
 import com.optionhelper.marketdata.DailyBar
+import com.optionhelper.pricing.MarketClock
 import java.time.LocalDate
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
@@ -17,6 +19,14 @@ enum class EarningsTiming {
 }
 
 data class EarningsEvent(val symbol: String, val date: LocalDate, val timing: EarningsTiming) {
+    /** 발표 시점의 기준 시각(미국 동부): 장 시작 전 발표면 개장 시각(그 전에 나옴), 장 마감 후면 마감 시각(그 뒤에 나옴). 시점 미상이면 null. */
+    fun referenceTime(): ZonedDateTime? =
+        when (timing) {
+            EarningsTiming.BEFORE_OPEN -> date.atTime(MarketClock.OPEN).atZone(MarketClock.NEW_YORK)
+            EarningsTiming.AFTER_CLOSE -> date.atTime(MarketClock.closeOf(date)).atZone(MarketClock.NEW_YORK)
+            EarningsTiming.UNKNOWN -> null
+        }
+
     /** 만기(16:00 ET)까지 이 실적의 주가 반응이 들어오는가. 시점을 모르면 만기 당일 발표도 들어온다고 보고 경고한다. */
     fun reactsBy(expiry: LocalDate): Boolean =
         when (timing) {
