@@ -164,6 +164,37 @@
 - [5] https://docs.alpaca.markets/docs/market-data-faq
 - [6] https://docs.alpaca.markets/docs/historical-option-data
 
+### 1-5. WebSocket 실시간 스트림 (2026-11-25, 공식 문서, 실측 전)
+
+현재 코드는 WebSocket을 쓰지 않는다(브라우저 10초 폴링 → 서버 REST, 5초 캐시). 아래는 푸시로 바꿀 수 있는지 보려고 공식 문서에서 확인한 값이다. (앞서 같은 날 이 절을 전부 "미확인"으로 만들었다가 사용자가 조사를 허락해 채웠다.)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 주식 스트림 URL | `wss://stream.data.alpaca.markets/v2/{feed}` | 공식 [7] |
+| 주식 무료(Basic) | 실시간 범위 IEX. `sip`는 Algo Trader Plus($99/월)부터 | 공식 [4] |
+| 주식 구독 한도 (Basic) | **30 심볼** ("Websocket subscriptions" 항목) | 공식 [4] |
+| 동시 연결 수 | 플랜 표에는 없음. 일반 규칙으로 "구독 많은 플랜 또는 구독 없음은 한도 1"이라고만 나옴 → 무료는 **1개로 가정** | 공식 [8], 일부 미확인 |
+| 주식 메시지 종류 | trades `t`, quotes `q`, 분봉 `b`, dailyBars `d`, updatedBars `u`, 정정 `c`, 취소 `x`, LULD `l`, 거래 상태 `s`, 주문 불균형 `i` | 공식 [7] |
+| 옵션 스트림 URL | `wss://stream.data.alpaca.markets/v1beta1/{feed}` (`indicative` 또는 `opra`) | 공식 [9] |
+| 옵션 무료(Basic) | `indicative`만 가능, **200 quotes**. `opra`는 Algo Trader Plus(1000 quotes) | 공식 [4] |
+| 옵션 메시지 종류 | trades `t`, quotes `q`만. 봉은 불가(오류 410). `*` 구독 불가(오류 413) | 공식 [9][8] |
+| 인증 메시지 | `{"action":"auth","key":"{KEY_ID}","secret":"{SECRET_KEY}"}`, 연결 후 10초 안에. 성공 응답 `[{"T":"success","msg":"authenticated"}]`. 옵션 페이지에는 별도 인증 예시가 없어 같은 형식으로 가정 | 공식 [8][7], 옵션은 미확인 |
+| 구독 메시지 | 주식 `{"action":"subscribe","trades":["AAPL"],"quotes":["AMD"]}`. 옵션 구독 예시는 문서에 없음, 같은 형식에 trades/quotes만 가정 | 공식 [7], 옵션은 미확인 |
+| 메시지 형식 | 주식: JSON 기본, `application/msgpack`도 가능. **옵션: msgpack만**(JSON이면 오류 412, `Content-Type: application/msgpack` 필요) → Kotlin에 msgpack 라이브러리 필요 | 공식 [8][9] |
+| 미확인 | 30·200 한도를 trades/quotes 채널을 합쳐 세는지 채널별로 세는지, 주식과 옵션 한도가 따로인지(표에는 별개 항목), 무료 연결 수의 정확한 값 | 실측 필요 |
+
+- [7] https://docs.alpaca.markets/docs/real-time-stock-pricing-data
+- [8] https://docs.alpaca.markets/docs/streaming-market-data
+- [9] https://docs.alpaca.markets/docs/real-time-option-data
+
+**indicative가 얼마나 가공됐나 (2026-11-25, 공식 문서·포럼 조사)**
+- 공식 표현은 한 줄뿐: "OPRA 원본의 무료 파생물이며 실제 OPRA 호가가 아니라 참고용 파생값". 공식 [10]
+- 가공 방식(반올림, 샘플링, 갱신 주기, 호가 수량 포함 여부): **확인 불가**. 문서·포럼에 설명 없음.
+- OPRA와의 호가 차이 크기(직원 설명, 사용자 측정): **확인 불가**. 못 찾음. → 실측 필요(같은 시각 IBKR OPRA 호가와 비교).
+- 체결: indicative 체결은 파생값이고 **15분 지연**. 호가의 지연 여부는 문서에 없음(기존 정리 "호가 실시간"은 문서 근거 없이 쓴 것일 수 있어 정정: 호가 지연 여부 미확인). 공식 [10]
+- [10] https://docs.alpaca.markets/docs/historical-option-data
+- **실측 (2026-11-25 03:12 KST = 미국 동부 11/24 13:12, 정규장 중)**: NVDA 옵션 `indicative` 스냅샷 8개 계약의 `latestQuote.t`가 호출 시각과 1초 안팎 차이(실시간으로 갱신됨). 같은 계약의 `latestTrade.t`는 17~50분 전. 주식 IEX 스냅샷도 호가·체결 시각이 호출 시각과 1초 안. → **호가 타임스탬프는 실시간, 체결은 지연**. 다만 이 값이 실제 OPRA 호가와 같은 값인지(가공 정도)는 토스·IBKR 호가와의 비교가 필요해 여전히 미확인. 실측
+
 ---
 
 ## 2. Alpha Vantage (`earnings/AlphaVantage*`)
@@ -446,6 +477,20 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 - [L3] https://interactivebrokers.github.io/tws-api/basic_contracts.html
 - [L4] https://interactivebrokers.github.io/tws-api/historical_bars.html
 - [L5] https://interactivebrokers.github.io/tws-api/historical_limitations.html
+
+### 3-10-1. 실시간 푸시 구독과 줄 수 계산 (2026-11-25)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| `reqMktData`가 주식·옵션 모두 푸시하는가 | 이 문서 3-4(주식)·3-6(옵션)의 `reqMktData(..., snapshot=false)`는 구독형이라 값이 바뀔 때마다 `tickPrice`·`tickSize`·`tickOptionComputation` 콜백이 온다. `cancelMktData`로 해지할 때까지 유지. 주식·옵션 둘 다 같은 방식 | 공식 [21][25] (이 문서 3-4, 3-6) |
+| 줄 수 한도 | 기본 100줄, 계약 1개 구독 = 1줄. 넘으면 오류 101. 늘리려면 수수료·Quote Booster(데이터소스-조사: 100줄당 월 $30) | 공식 [18][28] (3-8) |
+| 체인 전체를 구독하면 | 체인 전체는 수백 줄이라 불가. 만기 1개 ATM ±10칸 = 콜·풋 42줄(데이터소스-조사 2026-11-20 계산) | 계산, 공식 [28] 기준 |
+| 종목당 필요 줄 | 주식 1줄 + 옵션 약 42줄(만기 1개, ATM ±10칸) ≈ 43줄 | 계산 |
+| 종목 수별 | 2종목 ≈ 86줄 → 100줄 이내. 3종목 ≈ 129줄 → 초과. 3~5종목을 동시에 보려면 ATM ±5칸(콜·풋 22줄+주식 1줄=23줄)으로 줄이면 4종목 92줄. 5종목은 옵션 칸수를 더 줄이거나 줄 추가 필요 | 계산 (정확한 최소 칸수는 실측) |
+| 요청 속도 | 초당 (줄 수÷2)건 → 기본 50건. 43줄 구독은 1초 안에 끝남 | 공식 [28] (3-8) |
+| 미확인 | 한 종목 옵션 줄 수에 기초자산 주식 줄이 포함돼 그릭 계산에 쓰이는지(주식 구독은 어차피 1줄), 호가창·실시간 봉과 줄 공유 여부는 구현 시 실측 | 미확인 |
+
+---
 
 ### 3-11. 구현 전에 실측으로 채울 것
 
