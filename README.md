@@ -66,7 +66,7 @@
 - **보유 옵션 시나리오**: 종류·행사가·만기·옵션 가격(토스에서 보는 값)·주가를 넣으면 IV·델타·하루 세타·베가와, 주가가 그대로일 때 날짜별(1주 간격, 만기 전날, 만기) × IV별(지금 / 종목 IV가 1년 중앙값·최저로 돌아갈 때 / ±10%p) 가격 표
 - **관심 종목 비교**: 반도체 10종목의 IV·Rank·퍼센타일·IV÷HV
 
-IV 기록은 데이터 소스가 과거 30일 IV를 주면(IBKR `OPTION_IMPLIED_VOLATILITY` 일봉) 그걸 `daily_iv` 테이블에 쌓아 쓰고(한 번 받은 날짜는 다시 안 받음), 안 주면(Alpaca) 앱이 장중에 쌓은 스냅샷의 하루 마지막 ATM IV로 대신한다. 어느 쪽인지 화면에 표시된다. API: `/api/iv/history?symbol=`, `/api/iv/summary`, `/api/scenario?symbol=&type=CALL&strike=&expiry=&price=&spot=`.
+IV 기록은 데이터 소스가 과거 30일 IV를 주면(IBKR `OPTION_IMPLIED_VOLATILITY` 일봉) 그걸 `daily_iv` 테이블에 쌓아 쓰고(한 번 받은 날짜는 다시 안 받음), Alpaca는 과거 IV를 주지 않아 과거 옵션 일봉(만기된 계약 포함, 2024-02~)으로 날마다 약 30일 월물 ATM IV를 역산해 같은 테이블에 쌓는다. 그것도 없으면 앱이 장중에 쌓은 스냅샷의 하루 마지막 ATM IV로 대신한다. 어느 쪽인지 화면에 표시된다. API: `/api/iv/history?symbol=`, `/api/iv/summary`, `/api/scenario?symbol=&type=CALL&strike=&expiry=&price=&spot=`.
 
 ## 구조
 
