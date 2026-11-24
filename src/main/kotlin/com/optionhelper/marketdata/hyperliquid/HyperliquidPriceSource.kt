@@ -104,16 +104,24 @@ class HyperliquidPriceSource(
         val open = ZonedDateTime.of(date, MarketClock.OPEN, MarketClock.NEW_YORK).toInstant()
         val close = minOf(ZonedDateTime.of(date, MarketClock.closeOf(date), MarketClock.NEW_YORK).toInstant(), clock.instant())
         if (!close.isAfter(open)) return emptyList()
-        return candles(symbol, "5m", open, close)
-            .filter { !it.start.isBefore(open) && it.start.isBefore(close) }
-            .map { IntradayBar(it.start, it.close) }
+        return minuteBars(symbol, 5, open, close)
     }
+
+    override fun minuteBars(
+        symbol: String,
+        minutes: Int,
+        from: Instant,
+        to: Instant,
+    ): List<IntradayBar> =
+        candles(symbol, "${minutes}m", from, to)
+            .filter { !it.start.isBefore(from) && it.start.isBefore(to) }
+            .map { IntradayBar(it.start, it.open, it.high, it.low, it.close) }
 
     private fun restMark(coin: String): Double =
         HyperliquidParser.assetMarks(post(mapOf("type" to "metaAndAssetCtxs", "dex" to properties.dex)))[coin]
             ?: throw IllegalStateException("참고시세에 $coin 가격이 없습니다")
 
-    /** 요청당 최대 500개라 앞에서부터 이어 받는다. */
+    /** 요청 한 번에 최대 5000개라 넘으면 앞에서부터 이어 받는다. */
     private fun candles(
         symbol: String,
         interval: String,
@@ -144,7 +152,7 @@ class HyperliquidPriceSource(
         const val RECONNECT_CHECK_MS = 10_000L
         val STREAM_MAX_AGE: Duration = Duration.ofSeconds(60)
         val CLOSE_SETTLE: Duration = Duration.ofMinutes(1)
-        const val CANDLES_PER_REQUEST = 500
+        const val CANDLES_PER_REQUEST = 5000
     }
 }
 

@@ -13,8 +13,8 @@ class StockChartController(private val stockChartService: StockChartService) {
     @GetMapping("/api/stock-chart")
     fun chart(
         @RequestParam(defaultValue = "NVDA") symbol: String,
-        @RequestParam(defaultValue = "DAY") range: ChartRange,
-    ): StockChartResponse = stockChartService.chart(symbol, range)
+        @RequestParam(defaultValue = "MIN_5") interval: ChartInterval,
+    ): StockChartResponse = stockChartService.chart(symbol, interval)
 
     @ExceptionHandler(StockChartUnavailableException::class)
     fun unavailable(e: StockChartUnavailableException) =

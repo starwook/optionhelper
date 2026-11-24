@@ -1,5 +1,6 @@
 package com.optionhelper.marketdata
 
+import java.time.Instant
 import java.time.LocalDate
 
 /**
@@ -23,5 +24,13 @@ interface UnderlyingPriceSource {
     fun intradayBars(
         symbol: String,
         date: LocalDate,
+    ): List<IntradayBar>
+
+    /** 시작 시각이 [from, to)인 N분봉(정규장 밖 포함), 오래된 순. minutes는 1·5·15·30. 소스가 주는 만큼만(최근 일부일 수 있다). */
+    fun minuteBars(
+        symbol: String,
+        minutes: Int,
+        from: Instant,
+        to: Instant,
     ): List<IntradayBar>
 }
