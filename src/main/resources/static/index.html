@@ -46,12 +46,6 @@
   .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
   .tag.in { border-color: transparent; background: var(--event-bg); color: var(--event); }
 
-  /* 용어 설명: 누르면 한 줄 설명이 펼쳐진다 */
-  details.help { display: inline-block; vertical-align: middle; }
-  details.help summary { list-style: none; cursor: pointer; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--faint); color: var(--faint); font-size: 11px; font-weight: 700; }
-  details.help summary::-webkit-details-marker { display: none; }
-  details.help[open] p { position: absolute; z-index: 5; max-width: 300px; margin: 6px 0 0; padding: 10px 12px; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; color: var(--text); font-size: 14px; font-weight: 400; white-space: normal; }
-
   details.more > summary { cursor: pointer; color: var(--muted); }
 
   /* ── 오늘 판단: 예상 변동폭(이 화면에서 가장 먼저 볼 것) ── */
@@ -160,7 +154,7 @@
       <details class="more">
         <summary>변동성 숫자 자세히</summary>
         <div class="cols" style="margin-top:12px">
-          <div><h2>오늘 ATM IV 추이</h2><div class="chart" id="ivChart"></div></div>
+          <div><h2>오늘 ATM<span class="term-help" data-term="atm" tabindex="0">?</span> IV<span class="term-help" data-term="iv" tabindex="0">?</span> 추이</h2><div class="chart" id="ivChart"></div></div>
           <div id="volRows"></div>
         </div>
       </details>
@@ -183,10 +177,10 @@
 
   <section class="panel" id="tab-chain" hidden>
     <div class="legend">
-      <span><span class="swatch" style="background:var(--call)"></span>콜</span>
-      <span><span class="swatch" style="background:var(--put)"></span>풋</span>
-      <span><span class="swatch" style="background:var(--call-bg);outline:1px solid var(--line)"></span>내가격(ITM)</span>
-      <span>IV는 직접 계산값 (괄호는 데이터 소스 값)</span>
+      <span><span class="swatch" style="background:var(--call)"></span>콜<span class="term-help" data-term="call" tabindex="0">?</span></span>
+      <span><span class="swatch" style="background:var(--put)"></span>풋<span class="term-help" data-term="put" tabindex="0">?</span></span>
+      <span><span class="swatch" style="background:var(--call-bg);outline:1px solid var(--line)"></span>내가격(ITM)<span class="term-help" data-term="itm" tabindex="0">?</span></span>
+      <span>IV<span class="term-help" data-term="iv" tabindex="0">?</span>는 직접 계산값 (괄호는 데이터 소스 값)</span>
     </div>
     <div class="scroll"><table class="chain" id="chain"></table></div>
   </section>
@@ -203,6 +197,7 @@
 
 <footer id="footer"></footer>
 
+<script src="/glossary.js"></script>
 <script>
 // ── 상태 ──
 const POLL_MS = 10000;
@@ -222,7 +217,6 @@ const hm = (t) => String(t ?? '').replace(/(\d\d:\d\d):\d\d/, '$1');
 const md = (date) => date.slice(5).replace('-', '/');
 const weekday = (date) => '일월화수목금토'[new Date(date + 'T12:00:00').getDay()];
 const row = (k, v) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
-const help = (text) => `<details class="help"><summary aria-label="설명 보기">?</summary><p>${text}</p></details>`;
 
 // ── 데이터 ──
 async function load() {
@@ -262,7 +256,7 @@ function renderHeader(d) {
   $('symbol').placeholder = d.symbol;
   renderExpiries(d);
   const feedClass = d.feed.kind === 'REALTIME' ? '' : 'feed-warn';
-  $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
+  $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)}${d.feed.kind === 'INDICATIVE' ? term('indicative') : ''})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
   $('asOf').textContent = `${hm(d.asOfEt)} / ${hm(d.asOfKst)}`;
 }
 
@@ -291,7 +285,7 @@ function renderToday(d) {
   $('movePct').textContent = m ? '±' + pct(m.pct, 2) : '–';
   $('moveUsd').textContent = m ? '±$' + n2(m.dollars) : '';
   $('moveSub').innerHTML = m
-    ? `만기(${esc(hm(d.expiryKst))})까지 시장이 예상하는 주가 움직임 ${help('같은 행사가 콜+풋(스트래들) 가격 ÷ 주가. 시장이 만기까지 이 정도 움직인다고 값을 매겼다는 뜻. 실제로는 85% 정도(±' + pct(m.rule85Pct, 2) + ')로 보는 경험칙도 있음.')}`
+    ? `만기(${esc(hm(d.expiryKst))})까지 시장이 예상하는 주가 움직임${term('expectedMove')} · 85% 규칙 ±${pct(m.rule85Pct, 2)}${term('rule85')}`
     : '체인에 ATM 호가가 없어 계산할 수 없습니다.';
   $('range').innerHTML = m ? rangeBar(d) : '';
 
@@ -303,9 +297,9 @@ function renderToday(d) {
   const spotSub = `전일 종가 대비 <span class="${tone(fromClose)}">${signed(fromClose, 2)}</span>`;
   $('facts').innerHTML = [
     fact(spotLabel, '$' + n2(d.spot), spotSub),
-    fact('스트래들 1세트', d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
-    fact('본전 (수수료 포함)', straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
-    fact('만기까지', d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈 (IV는 달력 365일 기준)'),
+    fact('스트래들 1세트' + term('LONG_STRADDLE'), d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
+    fact('본전 (수수료 포함)' + term('breakeven'), straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
+    fact('만기까지' + term('expiry'), d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈 (IV는 달력 365일 기준)'),
   ].join('');
 
   renderPriceCard(d);
@@ -340,10 +334,10 @@ function rangeBar(d) {
 function renderPriceCard(d) {
   const v = d.volatility, r = v.ivHvRatio;
   const verdict = r == null ? '판단 불가' : r >= 1.3 ? '비싼 편' : r <= 0.9 ? '싼 편' : '보통';
-  $('priceCard').innerHTML = `<h2>옵션 가격 ${help('옵션에 붙은 변동성(IV)을 최근 20일 실제 주가 변동성(HV)과 비교. 1.3배 이상이면 비싼 편, 0.9배 이하면 싼 편.')}</h2>
+  $('priceCard').innerHTML = `<h2>옵션 가격${term('ivHvRatio')}</h2>
     <div class="big">${verdict}</div>
-    <p>IV ${pct(v.atmIvCalc ?? v.atmIvApi)} · 최근 실제 변동성의 ${r == null ? '–' : r.toFixed(2)}배</p>
-    <p class="faint">1년 중 위치 ${v.ivSamples ? pct(v.ivPercentile, 0) : '기록 쌓는 중'}</p>`;
+    <p>IV${term('iv')} ${pct(v.atmIvCalc ?? v.atmIvApi)} · 최근 실제 변동성(HV)${term('hv')}의 ${r == null ? '–' : r.toFixed(2)}배</p>
+    <p class="faint">1년 중 위치${term('ivPercentile')} ${v.ivSamples ? pct(v.ivPercentile, 0) : '기록 쌓는 중'}</p>`;
 }
 
 /** 이번 만기 안에 있는 실적발표·경제지표. 가격이 크게 흔들릴 수 있는 날. */
@@ -367,8 +361,8 @@ const ZONES = {
 function renderZoneCard(d) {
   const s = d.signals;
   const warnings = d.warnings.filter((w) => !w.startsWith('선택한 만기 안에'));
-  $('zoneCard').innerHTML = `<h2>참고 구간 ${help('교과서식 규칙으로 고른 구간입니다. 투자 조언이 아닙니다.')}</h2>` + (s.length
-    ? s.map((x) => `<div class="big" style="font-size:20px">${esc(ZONES[x.zone] || x.zone)}</div><p>${esc(x.reason)}</p>`).join('')
+  $('zoneCard').innerHTML = `<h2>참고 구간${term('zone')}</h2>` + (s.length
+    ? s.map((x) => `<div class="big" style="font-size:20px">${esc(ZONES[x.zone] || x.zone)}${term('premium')}</div><p>${esc(x.reason)}</p>`).join('')
     : '<div class="big">뚜렷한 구간 없음</div><p>IV가 실제 변동성과 비슷한 수준입니다.</p>')
     + (warnings.length ? `<ul class="warn-list">${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : '');
 }
@@ -383,11 +377,11 @@ function renderVol(d) {
   const v = d.volatility, term = v.termStructureRatio, rv = d.realizedVsExpected;
   $('volRows').innerHTML = [
     row('ATM IV (직접 계산 / 데이터 소스)', `${pct(v.atmIvCalc)} / ${pct(v.atmIvApi)}`),
-    row('최근 20일 실제 변동성', pct(v.hv20)),
-    row('전일 종가 대비 움직임 ÷ 예상', rv ? `<span class="${tone(rv.realizedPct)}">${signed(rv.realizedPct, 2)}</span> → ${Math.round(rv.ratio * 100)}%` : '–'),
+    row('최근 20일 실제 변동성(HV20)' + term('hv'), pct(v.hv20)),
+    row('전일 종가 대비 움직임 ÷ 예상' + term('realizedVsExpected'), rv ? `<span class="${tone(rv.realizedPct)}">${signed(rv.realizedPct, 2)}</span> → ${Math.round(rv.ratio * 100)}%` : '–'),
     row(`다음 만기 IV${v.nextExpiry ? ' (' + v.nextExpiry + ')' : ''}`, pct(v.nextExpiryIv)),
-    row('이번 ÷ 다음 만기 IV', term == null ? '–' : term.toFixed(2) + (term >= 1.05 ? ' <span class="event">단기 이벤트 프리미엄</span>' : '')),
-    row('스큐 (2칸 바깥 풋 IV − 콜 IV)', v.skew == null ? '–' : (v.skew * 100).toFixed(1) + '%p'),
+    row('이번 ÷ 다음 만기 IV' + term('termStructure'), term == null ? '–' : term.toFixed(2) + (term >= 1.05 ? ' <span class="event">단기 이벤트 프리미엄</span>' : '')),
+    row('스큐 (2칸 바깥 풋 IV − 콜 IV)' + term('skew'), v.skew == null ? '–' : (v.skew * 100).toFixed(1) + '%p'),
   ].join('');
 }
 
@@ -422,10 +416,10 @@ function strategyCard(s, d) {
   const at = (b) => `${n2(b.price)} <span class="faint">(${signed(b.movePct)})</span>`;
   const condition = s.view === 'BIG_MOVE' ? `${at(be[0])} 아래 또는 ${at(be[1])} 위`
     : s.view === 'UP' || s.view === 'NOT_DOWN' ? `${at(be[0])} 위` : `${at(be[0])} 아래`;
-  const start = s.netPremium < 0 ? `<span class="up">${usd(-s.netPremium)} 받음</span>` : `${usd(s.netPremium)} 냄`;
+  const start = s.netPremium < 0 ? `<span class="up">${usd(-s.netPremium)} 받음</span>${term('credit')}` : `${usd(s.netPremium)} 냄${term('debit')}`;
   const strikes = [...s.legs.matchAll(/(\d+(?:\.\d+)?)(C|P)/g)].map((x) => `${x[1]} ${x[2] === 'C' ? '콜' : '풋'}`).join(' / ');
-  return `<div class="plain">${esc(s.plainName)}</div><p class="sub-line">${esc(s.label)} · ${strikes}</p>
-    <p class="condition">만기 때 주가가 ${condition}면 이익</p>
+  return `<div class="plain">${esc(s.plainName)}</div><p class="sub-line">${esc(s.label)}${term(s.kind)} · ${strikes}</p>
+    <p class="condition">만기 때 주가가 ${condition}면 이익${term('breakeven')}</p>
     <dl class="terms">
       <div><dt>시작할 때</dt><dd>${start}</dd></div>
       <div><dt>최대 이익</dt><dd class="up">${usd(s.maxProfit)}</dd></div>
@@ -465,8 +459,8 @@ function renderChain(d) {
     ? `<td class="${itm ? 'p-itm' : ''}">${n2(l.delta)}</td><td class="${itm ? 'p-itm' : ''}">${ivCell(l)}</td><td class="mid p ${itm ? 'p-itm' : ''}">${n2(l.mid)}</td><td class="ba ${itm ? 'p-itm' : ''}">${n2(l.bid)}</td><td class="ba ${itm ? 'p-itm' : ''}">${n2(l.ask)}</td>`
     : '<td colspan="5" class="faint">–</td>');
   $('chain').innerHTML = `<thead>
-      <tr><th colspan="5" class="call-h" style="text-align:center">콜</th><th class="strike">행사가</th><th colspan="5" class="put-h" style="text-align:center">풋</th></tr>
-      <tr><th>매수</th><th>매도</th><th class="call-h">중간가</th><th>IV</th><th>델타</th><th class="strike"></th><th>델타</th><th>IV</th><th class="put-h">중간가</th><th>매수</th><th>매도</th></tr></thead>
+      <tr><th colspan="5" class="call-h" style="text-align:center">콜</th><th class="strike">행사가${term('strike')}</th><th colspan="5" class="put-h" style="text-align:center">풋</th></tr>
+      <tr><th>매수${term('bidAsk')}</th><th>매도</th><th class="call-h">중간가${term('mid')}</th><th>IV${term('iv')}</th><th>델타${term('delta')}</th><th class="strike"></th><th>델타</th><th>IV</th><th class="put-h">중간가</th><th>매수</th><th>매도</th></tr></thead>
     <tbody>${d.chain.map((r) => `<tr class="${r.atm ? 'atm' : ''}">${call(r.call, r.strike < d.spot)}<td class="strike">${strike(r.strike)}</td>${put(r.put, r.strike > d.spot)}</tr>`).join('')}</tbody>`;
 }
 
