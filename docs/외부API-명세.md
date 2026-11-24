@@ -185,6 +185,13 @@
 - [8] https://docs.alpaca.markets/docs/streaming-market-data
 - [9] https://docs.alpaca.markets/docs/real-time-option-data
 
+**indicative가 얼마나 가공됐나 (2026-11-25, 공식 문서·포럼 조사)**
+- 공식 표현은 한 줄뿐: "OPRA 원본의 무료 파생물이며 실제 OPRA 호가가 아니라 참고용 파생값". 공식 [10]
+- 가공 방식(반올림, 샘플링, 갱신 주기, 호가 수량 포함 여부): **확인 불가**. 문서·포럼에 설명 없음.
+- OPRA와의 호가 차이 크기(직원 설명, 사용자 측정): **확인 불가**. 못 찾음. → 실측 필요(같은 시각 IBKR OPRA 호가와 비교).
+- 체결: indicative 체결은 파생값이고 **15분 지연**. 호가의 지연 여부는 문서에 없음(기존 정리 "호가 실시간"은 문서 근거 없이 쓴 것일 수 있어 정정: 호가 지연 여부 미확인). 공식 [10]
+- [10] https://docs.alpaca.markets/docs/historical-option-data
+
 ---
 
 ## 2. Alpha Vantage (`earnings/AlphaVantage*`)
