@@ -33,6 +33,12 @@ interface MarketDataSource {
         from: LocalDate,
     ): List<DailyBar>
 
+    /** 그날(뉴욕 날짜) 정규장 5분봉, 오래된 순. 장이 아직 안 열렸으면 빈 목록. 상단 주가 차트에 쓴다. */
+    fun intradayBars(
+        symbol: String,
+        date: LocalDate,
+    ): List<IntradayBar>
+
     /** [dailyImpliedVolatility]가 무엇을 잰 값인지. IV 히스토리 화면에 기준으로 표시한다. */
     val historicalIvLabel: String get() = "데이터 소스의 30일 IV"
 

@@ -6,7 +6,7 @@
 <title>옵션 판단</title>
 <link rel="stylesheet" href="/app.css">
 <style>
-  /* 화면 구조: 상단 바 → 탭 4개(오늘 판단 / 전략 / 옵션 체인 / 일정) → 탭 내용 */
+  /* 화면 구조: 상단 바 → 주가·차트(모든 탭 공통) → 탭 4개(오늘 판단 / 전략 / 옵션 체인 / 일정) → 탭 내용 */
   main { padding: 20px; max-width: 1280px; width: 100%; margin: 0 auto; }
   @media (max-width: 700px) { main { padding: 16px; } }
 
@@ -21,6 +21,19 @@
   .error { color: var(--down); font-size: 14px; }
   .grow { flex: 1; }
 
+  /* ── 주가·차트: 어느 탭에서든 지금 주가가 어디 있는지 먼저 보이게 ── */
+  .quote { max-width: 1280px; width: 100%; margin: 0 auto; padding: 16px 20px 4px; }
+  .quote-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+  .quote-sym { font-size: 16px; font-weight: 700; color: var(--muted); }
+  .quote-price { font-size: 34px; font-weight: 800; line-height: 1.1; }
+  .quote-chg { font-size: 17px; font-weight: 700; }
+  .ranges { display: flex; gap: 4px; }
+  .ranges button { background: none; border: 1px solid transparent; border-radius: 8px; padding: 3px 10px; color: var(--muted); cursor: pointer; font-size: 14px; }
+  .ranges button[aria-pressed="true"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
+  .quote-chart { min-height: 170px; }
+  .quote-chart svg text { font-size: 12px; fill: var(--muted); }
+  .quote-note { margin: 0; font-size: 12px; color: var(--faint); }
+
   /* ── 탭 ── */
   nav.tabs { display: flex; align-items: center; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
   .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 16px; color: var(--muted); cursor: pointer; font-size: 16px; white-space: nowrap; }
@@ -28,7 +41,7 @@
   .tabs a { font-size: 14px; color: var(--muted); padding: 12px 8px; white-space: nowrap; }
 
   /* ── 만기: 탭 아래 가로 한 줄, 넘치면 옆으로 밀어서 본다 ── */
-  .expiries { display: flex; align-items: center; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
+  .expiries { position: relative; display: flex; align-items: center; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
   .expiries button { flex: none; display: grid; justify-items: center; gap: 1px; min-width: 64px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
   .expiries button small { font-size: 12px; color: var(--muted); }
   .expiries button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
@@ -122,6 +135,21 @@
   <span class="grow"></span>
   <span id="asOf" class="status"></span>
 </div>
+<section class="quote" aria-label="주가">
+  <div class="quote-head">
+    <span class="quote-sym" id="qSym"></span>
+    <span class="quote-price" id="qPrice">–</span>
+    <span class="quote-chg" id="qChg"></span>
+    <span class="grow"></span>
+    <div class="ranges" id="ranges">
+      <button data-range="DAY" aria-pressed="true">1일</button>
+      <button data-range="THREE_MONTHS" aria-pressed="false">3개월</button>
+      <button data-range="YEAR" aria-pressed="false">1년</button>
+    </div>
+  </div>
+  <div class="quote-chart" id="qChart"></div>
+  <p class="quote-note" id="qNote"></p>
+</section>
 <nav class="tabs" role="tablist">
   <button role="tab" data-tab="today">오늘 판단</button>
   <button role="tab" data-tab="strategy">전략</button>
@@ -203,8 +231,9 @@
 <script>
 // ── 상태 ──
 const POLL_MS = 10000;
+const CHART_POLL_MS = 60000; // 5분봉이라 1분마다면 충분. 선 끝은 10초마다 현재가로 이어 붙인다
 const TABS = ['today', 'strategy', 'chain', 'schedule'];
-const state = { symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null };
+const state = { symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null, range: 'DAY', chart: null };
 
 // ── 포맷 ──
 const $ = (id) => document.getElementById(id);
@@ -236,6 +265,23 @@ async function load() {
   }
 }
 
+/** 상단 주가 차트. 대시보드와 따로 받아서, 느리거나 실패해도 대시보드는 그대로 뜬다. */
+async function loadChart() {
+  const range = state.range;
+  const q = new URLSearchParams({ symbol: state.symbol, range });
+  try {
+    const res = await fetch('/api/stock-chart?' + q);
+    const c = await res.json();
+    if (!res.ok) throw new Error(c.error || '서버 오류 ' + res.status);
+    if (range !== state.range) return; // 그새 기간을 바꿨으면 버린다
+    state.chart = c;
+  } catch (e) {
+    if (range !== state.range) return;
+    state.chart = { error: e.message };
+  }
+  renderQuote();
+}
+
 function render(d) {
   if (state.data?.symbol !== d.symbol || state.data?.expiry !== d.expiry) state.ivTrail = [];
   state.data = d;
@@ -246,6 +292,7 @@ function render(d) {
   $('loading').hidden = true;
   showTab(state.tab);
   renderHeader(d);
+  renderQuote();
   renderToday(d);
   renderStrategies(d);
   renderChain(d);
@@ -260,6 +307,73 @@ function renderHeader(d) {
   const feedClass = d.feed.kind === 'REALTIME' ? '' : 'feed-warn';
   $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)}${d.feed.kind === 'INDICATIVE' ? term('indicative') : ''})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
   $('asOf').textContent = `${hm(d.asOfEt)} / ${hm(d.asOfKst)}`;
+}
+
+// ── 주가·차트 ──
+function renderQuote() {
+  const d = state.data, c = state.chart;
+  if (!d || d.symbol !== state.symbol.toUpperCase()) return;
+  const change = d.previousClose ? d.spot - d.previousClose : null;
+  $('qSym').textContent = d.symbol;
+  $('qPrice').textContent = '$' + n2(d.spot);
+  // 장 밖이면 현재가는 프리장·장후 체결가라 체결 시각을 같이 보여 준다
+  $('qChg').innerHTML = (change == null ? '' : `<span class="${tone(change)}">${change >= 0 ? '+' : '−'}$${n2(Math.abs(change))} (${signed(change / d.previousClose, 2)})</span>`)
+    + (d.marketOpen ? '' : ` <span class="feed-warn" style="font-size:14px;font-weight:400">장 밖 체결 ${esc(hm(d.spotAsOfKst))}</span>`);
+  if (!c || c.error || c.symbol !== d.symbol) {
+    $('qChart').innerHTML = `<div class="empty">${esc(c?.error || '차트 불러오는 중…')}</div>`;
+    $('qNote').textContent = '';
+    return;
+  }
+  const points = c.points.map((p) => [new Date(p.time).getTime(), p.price]);
+  // 장중이면 선 끝을 대시보드 현재가로 이어 붙인다(차트는 1분, 현재가는 10초마다 갱신)
+  const today = new Date(d.asOf).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  if (d.marketOpen && (c.range !== 'DAY' || c.sessionDate === today)) points.push([new Date(d.asOf).getTime(), d.spot]);
+  if (points.length < 2) { $('qChart').innerHTML = '<div class="empty">차트 데이터가 없습니다.</div>'; $('qNote').textContent = ''; return; }
+  const m = d.expectedMove;
+  const day = c.range === 'DAY';
+  $('qChart').innerHTML = priceChart(points, {
+    base: day ? c.previousClose : null,
+    // 1일은 x축을 장 마감까지 잡아, 장중엔 선이 하루 중 어디까지 왔는지 보이게
+    xEnd: day && c.sessionClose ? new Date(c.sessionClose).getTime() : null,
+    band: m ? [d.spot - m.dollars, d.spot + m.dollars] : null,
+    timeLabel: day
+      ? (t) => new Date(t).toLocaleTimeString('ko-KR', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET'
+      : (t) => new Date(t).toLocaleDateString('ko-KR', { timeZone: 'America/New_York', year: '2-digit', month: 'numeric', day: 'numeric' }),
+  });
+  const session = day
+    ? `${md(c.sessionDate)}(${weekday(c.sessionDate)}) 정규장 5분봉${c.sessionDate === today ? '' : ' (오늘 장 열리기 전이라 직전 거래일)'}`
+    : `최근 ${c.range === 'YEAR' ? '1년' : '3개월'} 일봉 종가`;
+  $('qNote').textContent = [
+    session,
+    day && c.previousClose ? `점선 = 전일 종가 ${n2(c.previousClose)}` : null,
+    m ? `회색 띠 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(d.spot - m.dollars)} ~ ${n2(d.spot + m.dollars)}` : null,
+  ].filter(Boolean).join(' · ');
+}
+
+/** 주가 선 + 기준선(전일 종가, 점선) + 예상 범위(가로 띠) + 현재가 점. 오른쪽 여백에 가격 라벨. */
+function priceChart(points, { base, band, xEnd, timeLabel }) {
+  const w = Math.max(320, $('qChart').clientWidth || 720), h = 170, padR = 84, padB = 20, top = 10;
+  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
+  const all = ys.concat(base ?? [], band ?? []);
+  let y0 = Math.min(...all), y1 = Math.max(...all);
+  const pad = (y1 - y0) * 0.06 || 1;
+  y0 -= pad; y1 += pad;
+  const x0 = xs[0], x1 = Math.max(xs[xs.length - 1], xEnd ?? 0);
+  const X = (x) => 4 + ((x - x0) / (x1 - x0 || 1)) * (w - padR - 4);
+  const Y = (y) => top + (1 - (y - y0) / (y1 - y0)) * (h - top - padB);
+  const last = points[points.length - 1];
+  const color = last[1] >= (base ?? points[0][1]) ? 'var(--up)' : 'var(--down)';
+  const path = points.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
+  const label = (y, text, fill = 'var(--muted)') => `<text x="${w - padR + 6}" y="${Y(y) + 4}" style="fill:${fill}">${text}</text>`;
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="주가 차트">
+    ${band ? `<rect x="4" y="${Y(band[1])}" width="${w - padR - 4}" height="${Y(band[0]) - Y(band[1])}" fill="rgba(238,241,246,.07)"/>${label(band[1], n2(band[1]))}${label(band[0], n2(band[0]))}` : ''}
+    ${base != null ? `<line x1="4" x2="${w - padR}" y1="${Y(base)}" y2="${Y(base)}" stroke="var(--faint)" stroke-dasharray="4 4"/>${label(base, '전일 ' + n2(base), 'var(--faint)')}` : ''}
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle cx="${X(last[0])}" cy="${Y(last[1])}" r="4" fill="${color}"/>
+    ${label(last[1], n2(last[1]), 'var(--text)')}
+    <text x="4" y="${h - 4}">${timeLabel(x0)}</text>
+    <text x="${w - padR}" y="${h - 4}" text-anchor="end">${timeLabel(x1)}</text>
+  </svg>`;
 }
 
 /** 만기 목록을 가로 한 줄로. 달이 바뀌는 곳에 "12월" 같은 표시를 넣는다. */
@@ -277,7 +391,9 @@ function renderExpiries(d) {
   if ($('expiries').dataset.key !== d.expiry + '|' + d.expirations.join()) {
     $('expiries').innerHTML = html;
     $('expiries').dataset.key = d.expiry + '|' + d.expirations.join();
-    $('expiries').querySelector('[aria-pressed="true"]')?.scrollIntoView({ inline: 'center', block: 'nearest' });
+    // 페이지는 그대로 두고 만기 줄만 옆으로 밀어 선택한 만기를 가운데에 둔다
+    const b = $('expiries').querySelector('[aria-pressed="true"]');
+    if (b) $('expiries').scrollLeft = b.offsetLeft - ($('expiries').clientWidth - b.offsetWidth) / 2;
   }
 }
 
@@ -292,13 +408,10 @@ function renderToday(d) {
   $('range').innerHTML = m ? rangeBar(d) : '';
 
   const straddle = d.strategies.find((s) => s.kind === 'LONG_STRADDLE');
-  const fromClose = d.previousClose ? d.spot / d.previousClose - 1 : null;
   const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-  // 장 밖이면 현재가는 프리장·장후 체결가라 체결 시각을 같이 보여 준다
-  const spotLabel = d.marketOpen ? '현재가' : `현재가 <span class="feed-warn">(장 밖 체결 ${esc(hm(d.spotAsOfKst))})</span>`;
-  const spotSub = `전일 종가 대비 <span class="${tone(fromClose)}">${signed(fromClose, 2)}</span>`;
+  // 현재가는 맨 위 주가 영역에 있으므로, 여기서는 그 현재가 기준 예상 범위를 보여 준다
   $('facts').innerHTML = [
-    fact(spotLabel, '$' + n2(d.spot), spotSub),
+    fact('예상 범위' + term('expectedMove'), m ? `${n2(d.spot - m.dollars)} ~ ${n2(d.spot + m.dollars)}` : '–', m ? `현재가 $${n2(d.spot)} ± $${n2(m.dollars)}` : ''),
     fact('스트래들 1세트' + term('LONG_STRADDLE'), d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
     fact('본전 (수수료 포함)' + term('breakeven'), straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
     fact('만기까지' + term('expiry'), d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈 (IV는 달력 365일 기준)'),
@@ -310,9 +423,10 @@ function renderToday(d) {
   renderVol(d);
 }
 
-/** 막대는 화면 폭으로 그리므로, 탭이 보일 때와 창 크기가 바뀔 때 다시 그린다. */
+/** 막대·차트는 화면 폭으로 그리므로, 탭이 보일 때와 창 크기가 바뀔 때 다시 그린다. */
 function redrawRange() {
   if (state.tab === 'today' && state.data?.expectedMove) $('range').innerHTML = rangeBar(state.data);
+  renderQuote();
 }
 
 /** 가격 축 위에 예상 범위(띠), 스트래들 본전, 현재가를 그린다. */
@@ -421,9 +535,10 @@ function strategyCard(s, d) {
   const condition = s.view === 'BIG_MOVE' ? `${at(be[0])} 아래 또는 ${at(be[1])} 위`
     : s.view === 'UP' || s.view === 'NOT_DOWN' ? `${at(be[0])} 위` : `${at(be[0])} 아래`;
   const start = s.netPremium < 0 ? `<span class="up">${usd(-s.netPremium)} 받음</span>${term('credit')}` : `${usd(s.netPremium)} 냄${term('debit')}`;
-  const strikes = [...s.legs.matchAll(/(\d+(?:\.\d+)?)(C|P)/g)].map((x) => `${x[1]} ${x[2] === 'C' ? '콜' : '풋'}`).join(' / ');
+  // 행사가마다 현재가 대비 위치를 붙여, 왜 이 행사가인지 바로 보이게
+  const strikes = [...s.legs.matchAll(/(\d+(?:\.\d+)?)(C|P)/g)].map((x) => `${x[1]} ${x[2] === 'C' ? '콜' : '풋'} <span class="faint">(현재가 ${signed(Number(x[1]) / d.spot - 1)})</span>`).join(' / ');
   return `<div class="plain">${esc(s.plainName)}</div><p class="sub-line">${esc(s.label)}${term(s.kind)} · ${strikes}</p>
-    <p class="condition">만기 때 주가가 ${condition}면 이익${term('breakeven')}</p>
+    <p class="condition">현재 $${n2(d.spot)}에서, 만기 때 주가가 ${condition}면 이익${term('breakeven')}</p>
     <dl class="terms">
       <div><dt>시작할 때</dt><dd>${start}</dd></div>
       <div><dt>최대 이익</dt><dd class="up">${usd(s.maxProfit)}</dd></div>
@@ -564,7 +679,16 @@ async function init() {
   } catch (e) { /* 기본 종목(NVDA)으로 진행 */ }
   $('symbol').addEventListener('change', (e) => {
     const v = e.target.value.trim().toUpperCase();
-    if (v) { state.symbol = v; state.expiry = null; e.target.value = ''; load(); }
+    if (v) { state.symbol = v; state.expiry = null; state.chart = null; e.target.value = ''; load(); loadChart(); }
+  });
+  $('ranges').addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-range]');
+    if (!b || b.dataset.range === state.range) return;
+    state.range = b.dataset.range;
+    state.chart = null;
+    $('ranges').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderQuote();
+    loadChart();
   });
   $('expiries').addEventListener('click', (e) => {
     const b = e.target.closest('button[data-expiry]');
@@ -572,7 +696,9 @@ async function init() {
   });
   window.addEventListener('resize', redrawRange);
   load();
+  loadChart();
   setInterval(load, POLL_MS);
+  setInterval(loadChart, CHART_POLL_MS);
 }
 init();
 </script>
