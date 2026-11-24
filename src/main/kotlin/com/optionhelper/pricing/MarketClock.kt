@@ -8,8 +8,9 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /**
- * 미국 정규장 시계. 만기는 그날 장 마감(보통 동부 16:00, 조기 마감일은 13:00)이고, 남은 시간은 장중 시간만 센다(실거래시간 기준).
- * 휴장일·조기 마감은 [UsMarketCalendar] 규칙을 따른다.
+ * 미국 정규장 시계. 만기는 그날 장 마감(보통 동부 16:00, 조기 마감일은 13:00)이다.
+ * 블랙-숄즈에 넣는 시간은 달력 시간(연 365일, 밤·주말 포함)이다. 증권사·TradingView 등 흔히 보는 IV와 같은 기준(2026-11-24).
+ * 화면에 보여주는 "만기까지 장중 시간"은 [tradingHoursUntil]로 따로 센다. 휴장일·조기 마감은 [UsMarketCalendar] 규칙을 따른다.
  */
 object MarketClock {
     val NEW_YORK: ZoneId = ZoneId.of("America/New_York")
@@ -17,8 +18,9 @@ object MarketClock {
     val OPEN: LocalTime = LocalTime.of(9, 30)
     val CLOSE: LocalTime = LocalTime.of(16, 0)
 
-    const val TRADING_DAYS_PER_YEAR = 252.0
+    const val DAYS_PER_YEAR = 365.0
     const val TRADING_HOURS_PER_DAY = 6.5
+    private const val SECONDS_PER_YEAR = DAYS_PER_YEAR * 24 * 3600
 
     fun isTradingDay(date: LocalDate): Boolean = !UsMarketCalendar.isWeekend(date) && !UsMarketCalendar.isHoliday(date)
 
@@ -57,11 +59,9 @@ object MarketClock {
         return seconds / 3600.0
     }
 
-    /** 블랙-숄즈에 넣을 년 단위 시간. */
+    /** 블랙-숄즈에 넣을 년 단위 시간: now부터 만기(그날 장 마감)까지의 달력 시간 ÷ 365일. 지났으면 0. */
     fun yearsUntil(
         now: Instant,
         expiry: LocalDate,
-    ): Double = tradingHoursToYears(tradingHoursUntil(now, expiry))
-
-    fun tradingHoursToYears(hours: Double): Double = hours / (TRADING_DAYS_PER_YEAR * TRADING_HOURS_PER_DAY)
+    ): Double = maxOf(0L, Duration.between(now, expiryAt(expiry).toInstant()).seconds) / SECONDS_PER_YEAR
 }

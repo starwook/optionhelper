@@ -87,7 +87,7 @@ class DashboardService(
                 ?: expirations.firstOrNull()
                 ?: error("$symbol 만기 목록이 비었습니다")
         val hours = MarketClock.tradingHoursUntil(now, expiry)
-        val t = MarketClock.tradingHoursToYears(hours)
+        val t = MarketClock.yearsUntil(now, expiry)
         val chain = source.chain(symbol, expiry, spot * (1 - CHAIN_RANGE), spot * (1 + CHAIN_RANGE))
         val atmStrike = chain.atmStrike(spot)
 

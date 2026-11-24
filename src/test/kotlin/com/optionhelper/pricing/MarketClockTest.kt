@@ -40,6 +40,20 @@ class MarketClockTest {
     }
 
     @Test
+    fun `IV용 년 단위 시간은 밤과 주말을 포함한 달력 시간 나누기 365일`() {
+        val monday = LocalDate.of(2026, 11, 23)
+        // 금요일 17:00 → 월요일 16:00 = 71시간
+        assertThat(MarketClock.yearsUntil(et("2026-11-20T17:00:00"), monday)).isCloseTo(71.0 / (365 * 24), within(1e-12))
+        // 장 시작 전 07:00 → 그날 16:00 = 9시간
+        assertThat(MarketClock.yearsUntil(et("2026-11-20T07:00:00"), friday)).isCloseTo(9.0 / (365 * 24), within(1e-12))
+    }
+
+    @Test
+    fun `만기가 지나면 년 단위 시간도 0`() {
+        assertThat(MarketClock.yearsUntil(et("2026-11-20T16:30:00"), friday)).isEqualTo(0.0)
+    }
+
+    @Test
     fun `장 열림 판정`() {
         assertThat(MarketClock.isOpen(et("2026-11-20T09:30:00"))).isTrue()
         assertThat(MarketClock.isOpen(et("2026-11-20T16:00:00"))).isFalse()

@@ -40,11 +40,11 @@ class OpenEstimatesTest {
     }
 
     @Test
-    fun `주가가 그대로고 IV도 그대로면 밤사이 시간이 안 흘러 전일 가격과 같다`() {
+    fun `주가가 그대로고 IV도 그대로면 밤사이 시간가치만큼 전일 가격보다 조금 싸다`() {
         val e = build(168.27)
         val unchanged = e.rows.first { it.move == 0.0 }.prices.first()
-        // 실거래시간 기준이라 전일 마감과 오늘 개장 사이 남은 시간이 같다
-        assertThat(unchanged).isCloseTo(6.35, within(1e-4))
+        // 달력 시간 기준이라 전일 16:00 → 오늘 9:30 사이 17.5시간만큼 시간가치가 줄어든다
+        assertThat(unchanged).isLessThan(6.35).isGreaterThan(6.35 * 0.95)
         assertThat(e.gap).isEqualTo(0.0)
     }
 

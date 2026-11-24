@@ -307,7 +307,7 @@ function renderToday(d) {
     fact(spotLabel, '$' + n2(d.spot), spotSub),
     fact('스트래들 1세트', d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
     fact('본전 (수수료 포함)', straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
-    fact('만기까지', d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈'),
+    fact('만기까지', d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈 (IV는 달력 365일 기준)'),
   ].join('');
 
   renderPriceCard(d);

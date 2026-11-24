@@ -59,7 +59,7 @@ object OptionScenarios {
                     levels.map { BlackScholes.price(type, spot, strike, years, rate, it.iv) },
                 )
             }
-        return OptionScenario(iv, greeks.delta, greeks.theta / MarketClock.TRADING_DAYS_PER_YEAR, greeks.vega, levels, rows)
+        return OptionScenario(iv, greeks.delta, greeks.theta / MarketClock.DAYS_PER_YEAR, greeks.vega, levels, rows)
     }
 
     /** 지금, 그 뒤 1주 간격의 장 마감, 만기 하루 전, 만기. */
