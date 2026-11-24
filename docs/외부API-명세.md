@@ -89,7 +89,7 @@
 | `snapshots.*.latestQuote` | `t`, `bp`, `bs`, `bx`, `ap`, `as`, `ax`, `c` |
 | `snapshots.*.latestTrade` | `t`, `p`, `s`, `x`, `c` |
 | `snapshots.*.greeks` | `delta`, `gamma`, `theta`, `vega`, `rho` (블랙-숄즈) |
-| `snapshots.*.impliedVolatility` | 숫자 (블랙-숄즈) |
+| `snapshots.*.impliedVolatility` | 숫자 (블랙-숄즈). 연 환산 기준은 문서에 없음. 화면 4장 비교로는 달력 365일 기준과 맞음(2026-11-24, 추정). 프리장엔 주가 시점이 옵션 호가와 어긋나 크게 튈 수 있음 |
 | `snapshots.*.dailyBar`, `minuteBar`, `prevDailyBar` | `t`, `o`, `h`, `l`, `c`, `v`, `n`, `vw` |
 | `next_page_token` | 문자열 또는 `null`. `page_token`으로 넘기면 다음 페이지 |
 

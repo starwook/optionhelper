@@ -9,7 +9,7 @@ class ImpliedVolatilitySolverTest {
 
     @Test
     fun `요구서 예시 - 실거래시간 12_7시간이면 IV 약 50%`() {
-        val t = MarketClock.tradingHoursToYears(12.7)
+        val t = 12.7 / (252 * 6.5)
         val callIv = ImpliedVolatilitySolver.solve(OptionType.CALL, 3.15, 158.13, 157.5, t, r)!!
         val putIv = ImpliedVolatilitySolver.solve(OptionType.PUT, 2.43, 158.13, 157.5, t, r)!!
 

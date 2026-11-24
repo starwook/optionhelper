@@ -57,7 +57,7 @@ class FakeMarketDataSource(private val clock: Clock) : MarketDataSource {
     ): OptionChain {
         val spot = stockQuote(symbol).price
         val step = strikeStep(spot)
-        val t = maxOf(MarketClock.yearsUntil(clock.instant(), expiry), 1.0 / (252 * 6.5 * 4))
+        val t = maxOf(MarketClock.yearsUntil(clock.instant(), expiry), 1.0 / (365 * 24 * 4))
         val strikes = generateSequence(round(minStrike / step) * step) { it + step }.takeWhile { it <= maxStrike }
         val quotes =
             strikes.flatMap { k ->
