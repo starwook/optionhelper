@@ -374,13 +374,13 @@ function renderVol(d) {
   $('ivChart').innerHTML = points.length < 2
     ? '<div class="empty">장중에 앱을 켜 두면 1분마다 기록이 쌓이고 여기에 추이가 그려집니다.</div>'
     : lineChart(points.map((p) => [new Date(p.time).getTime(), p.iv * 100]), { height: 200, yLabel: (y) => y.toFixed(1) + '%' });
-  const v = d.volatility, term = v.termStructureRatio, rv = d.realizedVsExpected;
+  const v = d.volatility, termRatio = v.termStructureRatio, rv = d.realizedVsExpected;
   $('volRows').innerHTML = [
     row('ATM IV (직접 계산 / 데이터 소스)', `${pct(v.atmIvCalc)} / ${pct(v.atmIvApi)}`),
     row('최근 20일 실제 변동성(HV20)' + term('hv'), pct(v.hv20)),
     row('전일 종가 대비 움직임 ÷ 예상' + term('realizedVsExpected'), rv ? `<span class="${tone(rv.realizedPct)}">${signed(rv.realizedPct, 2)}</span> → ${Math.round(rv.ratio * 100)}%` : '–'),
     row(`다음 만기 IV${v.nextExpiry ? ' (' + v.nextExpiry + ')' : ''}`, pct(v.nextExpiryIv)),
-    row('이번 ÷ 다음 만기 IV' + term('termStructure'), term == null ? '–' : term.toFixed(2) + (term >= 1.05 ? ' <span class="event">단기 이벤트 프리미엄</span>' : '')),
+    row('이번 ÷ 다음 만기 IV' + term('termStructure'), termRatio == null ? '–' : termRatio.toFixed(2) + (termRatio >= 1.05 ? ' <span class="event">단기 이벤트 프리미엄</span>' : '')),
     row('스큐 (2칸 바깥 풋 IV − 콜 IV)' + term('skew'), v.skew == null ? '–' : (v.skew * 100).toFixed(1) + '%p'),
   ].join('');
 }
