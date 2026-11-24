@@ -256,7 +256,7 @@
         <button data-cal="1" aria-label="다음 달">▶</button>
       </div>
       <div class="cal" id="cal"><div class="empty">불러오는 중…</div></div>
-      <p class="cal-legend"><span class="chip macro" style="display:inline">노랑</span> 경제지표(한국 시간) · <span class="chip earn" style="display:inline">파랑</span> 관심 종목 실적발표(아래 줄은 발표 시점: 미국 장 시작 전 / 장 마감 후). 날짜는 미국 기준.</p>
+      <p class="cal-legend"><span class="chip macro" style="display:inline">노랑</span> 경제지표 · <span class="chip earn" style="display:inline">파랑</span> 관심 종목 실적발표. 날짜·시각은 모두 한국 시간.</p>
       <p class="error" id="scheduleWarn" hidden></p>
     </div>
     <div class="panel"><h2 id="nasdaqTitle">나스닥 월별 수익률</h2><div class="scroll"><table class="heat" id="season"></table></div></div>
@@ -658,7 +658,9 @@ async function loadSchedule() {
 }
 
 const MACRO_SHORT = { FOMC: 'FOMC', CPI: 'CPI', PPI: 'PPI', PCE: 'PCE', NFP: '고용' };
-const TIMING = { BEFORE_OPEN: '장 시작 전', AFTER_CLOSE: '장 마감 후', UNKNOWN: '시점 미상' };
+
+/** 실적 발표 시각(한국 시간). 회사는 정확한 시각 대신 장 시작 전/마감 후만 알려 줘서 기준 시각의 전/후로 쓴다. */
+const earningsWhen = (x) => (x.timing === 'BEFORE_OPEN' ? `${x.timeKst} 전 발표` : x.timing === 'AFTER_CLOSE' ? `${x.timeKst} 이후 발표` : '발표 시각 미정');
 
 function renderSchedulePage() {
   const s = state.schedule;
@@ -679,7 +681,7 @@ function renderCalendar(s) {
   const byDate = {};
   const add = (date, html) => (byDate[date] ??= []).push(html);
   s.macro.forEach((x) => add(x.date, `<span class="chip macro" title="${esc(x.label)} ${esc(x.timeKst)} KST">${MACRO_SHORT[x.type] || esc(x.label)} ${esc(x.timeKst)}</span>`));
-  s.earnings.forEach((x) => add(x.date, `<span class="chip earn" title="${esc(x.symbol)} 실적발표 · ${TIMING[x.timing] || ''}">${esc(x.symbol)} 실적${x.timing === 'UNKNOWN' ? '' : `<small>${TIMING[x.timing]}</small>`}</span>`));
+  s.earnings.forEach((x) => add(x.date, `<span class="chip earn" title="${esc(x.symbol)} 실적발표 · ${earningsWhen(x)}">${esc(x.symbol)} 실적<small>${earningsWhen(x)}</small></span>`));
 
   const first = new Date(y, m - 1, 1);
   const start = new Date(y, m - 1, 1 - first.getDay()); // 그 주 일요일부터

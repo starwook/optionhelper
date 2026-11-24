@@ -24,23 +24,17 @@ class ScheduleService(
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun schedule(): ScheduleResponse {
-        val today = clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate()
+        val today = clock.instant().atZone(MarketClock.SEOUL).toLocalDate()
         val from = today.minusDays(PAST_DAYS)
         val warnings = mutableListOf<String>()
 
+        // 달력은 한국 시간 기준: 발표 시각을 한국 시간으로 바꾼 날짜 칸에 넣는다(예: FOMC 미국 12/9 14:00 → 12/10 04:00)
         val macro =
-            macroCalendar.events.filter { !it.date.isBefore(from) }
-                .sortedWith(compareBy({ it.date }, { it.type.releaseTimeEt }))
-                .map {
-                    val kst = it.releaseAt().withZoneSameInstant(MarketClock.SEOUL)
-                    ScheduleMacroView(
-                        type = it.type.name,
-                        label = it.type.label,
-                        date = it.date,
-                        // 달력 칸은 미국 날짜라, 한국 시간으로 다음 날이면 표시한다(예: FOMC 익일 04:00)
-                        timeKst = (if (kst.toLocalDate() != it.date) "익일 " else "") + kst.format(HOUR_MINUTE),
-                    )
-                }
+            macroCalendar.events
+                .map { it to it.releaseAt().withZoneSameInstant(MarketClock.SEOUL) }
+                .filter { (_, kst) -> !kst.toLocalDate().isBefore(from) }
+                .sortedBy { (_, kst) -> kst }
+                .map { (event, kst) -> ScheduleMacroView(event.type.name, event.type.label, kst.toLocalDate(), kst.format(HOUR_MINUTE)) }
 
         val earningsEvents =
             WatchedSymbol.STOCKS.flatMap { symbol ->
@@ -50,8 +44,9 @@ class ScheduleService(
                         warnings += "$symbol 실적 일정을 못 받았습니다."
                         emptyList()
                     }
+                    .map { earningsView(it) }
                     .filter { !it.date.isBefore(from) }
-            }.sortedWith(compareBy<EarningsEvent>({ it.date }, { it.symbol }))
+            }.sortedWith(compareBy({ it.date }, { it.symbol }))
 
         val nasdaqBars =
             runCatching { dailyBars.bars(NASDAQ_PROXY) }.getOrElse {
@@ -69,6 +64,12 @@ class ScheduleService(
             nasdaq = NasdaqSeasonality(NASDAQ_PROXY, NASDAQ_LABEL, Seasonality.monthStats(nasdaqBars), today.monthValue),
             warnings = warnings,
         )
+    }
+
+    /** 장 마감 후 발표는 한국 시간으로 다음 날 아침이므로 그 날짜 칸에 넣는다. 시점 미상이면 미국 날짜 그대로. */
+    private fun earningsView(event: EarningsEvent): ScheduleEarningsView {
+        val kst = event.referenceTime()?.withZoneSameInstant(MarketClock.SEOUL)
+        return ScheduleEarningsView(event.symbol, kst?.toLocalDate() ?: event.date, event.timing.name, kst?.format(HOUR_MINUTE))
     }
 
     companion object {
