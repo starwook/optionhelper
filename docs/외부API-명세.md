@@ -162,21 +162,28 @@
 - [5] https://docs.alpaca.markets/docs/market-data-faq
 - [6] https://docs.alpaca.markets/docs/historical-option-data
 
-### 1-5. WebSocket 실시간 스트림 (2026-11-25, 전부 미확인 — 조사 대기)
+### 1-5. WebSocket 실시간 스트림 (2026-11-25, 공식 문서, 실측 전)
 
-현재 코드는 WebSocket을 쓰지 않는다(브라우저 10초 폴링 → 서버 REST, 5초 캐시). 푸시로 바꿀 수 있는지 보려고 만든 절이며, **아래 값은 아직 어떤 근거로도 확인하지 않았다**(자료조사는 사용자가 GPT로 진행). 확인되면 날짜·확인 수준과 함께 채운다.
+현재 코드는 WebSocket을 쓰지 않는다(브라우저 10초 폴링 → 서버 REST, 5초 캐시). 아래는 푸시로 바꿀 수 있는지 보려고 공식 문서에서 확인한 값이다. (앞서 같은 날 이 절을 전부 "미확인"으로 만들었다가 사용자가 조사를 허락해 채웠다.)
 
 | 항목 | 내용 | 확인 |
 |---|---|---|
-| 주식 스트림 URL | `wss://stream.data.alpaca.markets/v2/iex` (무료 예상) / `v2/sip` (유료 예상) | 미확인 |
-| 무료 플랜에서 주식 스트림 사용 가능 여부 | [확인 필요] | 미확인 |
-| 주식 구독 심볼 한도 | [확인 필요] | 미확인 |
-| 동시 연결 수 한도 | [확인 필요] | 미확인 |
-| 주식 메시지 종류 (trades / quotes / bars 등) | [확인 필요] | 미확인 |
-| 옵션 스트림 URL | `wss://stream.data.alpaca.markets/v1beta1/indicative` / `v1beta1/opra` | 미확인 |
-| 무료 플랜에서 옵션 스트림 사용 가능 여부, 심볼 한도 | [확인 필요] | 미확인 |
-| 인증 메시지 형식 | [확인 필요] | 미확인 |
-| 메시지 형식 (JSON / msgpack) | [확인 필요] | 미확인 |
+| 주식 스트림 URL | `wss://stream.data.alpaca.markets/v2/{feed}` | 공식 [7] |
+| 주식 무료(Basic) | 실시간 범위 IEX. `sip`는 Algo Trader Plus($99/월)부터 | 공식 [4] |
+| 주식 구독 한도 (Basic) | **30 심볼** ("Websocket subscriptions" 항목) | 공식 [4] |
+| 동시 연결 수 | 플랜 표에는 없음. 일반 규칙으로 "구독 많은 플랜 또는 구독 없음은 한도 1"이라고만 나옴 → 무료는 **1개로 가정** | 공식 [8], 일부 미확인 |
+| 주식 메시지 종류 | trades `t`, quotes `q`, 분봉 `b`, dailyBars `d`, updatedBars `u`, 정정 `c`, 취소 `x`, LULD `l`, 거래 상태 `s`, 주문 불균형 `i` | 공식 [7] |
+| 옵션 스트림 URL | `wss://stream.data.alpaca.markets/v1beta1/{feed}` (`indicative` 또는 `opra`) | 공식 [9] |
+| 옵션 무료(Basic) | `indicative`만 가능, **200 quotes**. `opra`는 Algo Trader Plus(1000 quotes) | 공식 [4] |
+| 옵션 메시지 종류 | trades `t`, quotes `q`만. 봉은 불가(오류 410). `*` 구독 불가(오류 413) | 공식 [9][8] |
+| 인증 메시지 | `{"action":"auth","key":"{KEY_ID}","secret":"{SECRET_KEY}"}`, 연결 후 10초 안에. 성공 응답 `[{"T":"success","msg":"authenticated"}]`. 옵션 페이지에는 별도 인증 예시가 없어 같은 형식으로 가정 | 공식 [8][7], 옵션은 미확인 |
+| 구독 메시지 | 주식 `{"action":"subscribe","trades":["AAPL"],"quotes":["AMD"]}`. 옵션 구독 예시는 문서에 없음, 같은 형식에 trades/quotes만 가정 | 공식 [7], 옵션은 미확인 |
+| 메시지 형식 | 주식: JSON 기본, `application/msgpack`도 가능. **옵션: msgpack만**(JSON이면 오류 412, `Content-Type: application/msgpack` 필요) → Kotlin에 msgpack 라이브러리 필요 | 공식 [8][9] |
+| 미확인 | 30·200 한도를 trades/quotes 채널을 합쳐 세는지 채널별로 세는지, 주식과 옵션 한도가 따로인지(표에는 별개 항목), 무료 연결 수의 정확한 값 | 실측 필요 |
+
+- [7] https://docs.alpaca.markets/docs/real-time-stock-pricing-data
+- [8] https://docs.alpaca.markets/docs/streaming-market-data
+- [9] https://docs.alpaca.markets/docs/real-time-option-data
 
 ---
 
