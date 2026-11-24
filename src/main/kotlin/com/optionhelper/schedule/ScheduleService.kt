@@ -56,7 +56,7 @@ class ScheduleService(
         val nasdaqBars =
             runCatching { dailyBars.bars(NASDAQ_PROXY) }.getOrElse {
                 log.warn("나스닥 일봉 조회 실패: {}", it.message)
-                warnings += "나스닥(${NASDAQ_PROXY}) 일봉을 못 받았습니다."
+                warnings += "$NASDAQ_LABEL 일봉을 못 받았습니다."
                 emptyList()
             }
 
@@ -74,7 +74,7 @@ class ScheduleService(
     companion object {
         // 나스닥 지수 자체는 시세 소스에 없어 Hyperliquid 나스닥100 추종 선물(xyz:XYZ100)로 대신한다(docs/데이터소스-조사.md 11-3)
         const val NASDAQ_PROXY = "XYZ100"
-        const val NASDAQ_LABEL = "나스닥100(XYZ100 선물)"
+        const val NASDAQ_LABEL = "나스닥100"
 
         // 달력에서 이번 달 지난 날짜도 보이게 한 달 전부터
         private const val PAST_DAYS = 31L
