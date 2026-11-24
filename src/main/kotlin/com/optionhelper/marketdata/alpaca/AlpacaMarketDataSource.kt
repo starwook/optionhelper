@@ -5,6 +5,7 @@ import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.DailyIv
 import com.optionhelper.marketdata.DataFeed
 import com.optionhelper.marketdata.FeedKind
+import com.optionhelper.marketdata.IntradayBar
 import com.optionhelper.marketdata.MarketDataSource
 import com.optionhelper.marketdata.OccSymbol
 import com.optionhelper.marketdata.StockQuote
@@ -20,6 +21,7 @@ import org.springframework.web.util.UriBuilder
 import java.net.URI
 import java.time.Clock
 import java.time.LocalDate
+import java.time.ZonedDateTime
 
 /**
  * Alpaca Market Data API(무료 Basic 플랜 기준). 옵션 호가는 indicative(실시간 가공값), 주식은 IEX 실시간.
@@ -103,6 +105,29 @@ class AlpacaMarketDataSource(
             // 무료 플랜에서 SIP 과거 데이터가 막혀 있으면 IEX로 다시 받는다
             barPages(symbol, from, "iex")
         }
+
+    /** 무료 플랜은 SIP 최근 15분을 못 받으므로 주식 실시간 피드(IEX)로 받는다. docs/외부API-명세.md 1-3. */
+    override fun intradayBars(
+        symbol: String,
+        date: LocalDate,
+    ): List<IntradayBar> {
+        val open = ZonedDateTime.of(date, MarketClock.OPEN, MarketClock.NEW_YORK).toInstant()
+        val close = minOf(ZonedDateTime.of(date, MarketClock.closeOf(date), MarketClock.NEW_YORK).toInstant(), clock.instant())
+        if (!close.isAfter(open)) return emptyList()
+        return AlpacaParser.intradayBars(
+            symbol,
+            get {
+                it.path("/v2/stocks/bars")
+                    .queryParam("symbols", symbol)
+                    .queryParam("timeframe", "5Min")
+                    .queryParam("start", open)
+                    .queryParam("end", close)
+                    .queryParam("limit", 10000)
+                    .queryParam("feed", properties.stockFeed)
+                    .build()
+            },
+        )
+    }
 
     /**
      * 과거 IV를 주지 않아서, 과거 옵션 일봉(만기된 계약 포함)으로 날마다 약 30일 ATM IV를 역산한다.

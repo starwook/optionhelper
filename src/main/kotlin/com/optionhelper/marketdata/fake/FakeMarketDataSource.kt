@@ -4,6 +4,7 @@ import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.DailyIv
 import com.optionhelper.marketdata.DataFeed
 import com.optionhelper.marketdata.FeedKind
+import com.optionhelper.marketdata.IntradayBar
 import com.optionhelper.marketdata.MarketDataSource
 import com.optionhelper.marketdata.StockQuote
 import com.optionhelper.option.OptionChain
@@ -16,6 +17,7 @@ import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.ZonedDateTime
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.round
@@ -98,6 +100,20 @@ class FakeMarketDataSource(private val clock: Clock) : MarketDataSource {
         // 마지막 종가가 가짜 현재가 근처가 되게 맞춘다(복기 결과가 현재가와 동떨어지지 않게)
         val scale = basePrice(symbol) / (bars.lastOrNull()?.close ?: 1.0)
         return bars.map { DailyBar(it.date, it.open * scale, it.high * scale, it.low * scale, it.close * scale) }
+    }
+
+    /** 현재가와 같은 식으로 출렁이는 5분봉. 장 시작부터 지금(또는 마감)까지. */
+    override fun intradayBars(
+        symbol: String,
+        date: LocalDate,
+    ): List<IntradayBar> {
+        val open = ZonedDateTime.of(date, MarketClock.OPEN, MarketClock.NEW_YORK).toInstant()
+        val close = minOf(ZonedDateTime.of(date, MarketClock.closeOf(date), MarketClock.NEW_YORK).toInstant(), clock.instant())
+        val base = basePrice(symbol)
+        return generateSequence(open) { it.plusSeconds(300) }
+            .takeWhile { it.isBefore(close) }
+            .map { IntradayBar(it, round2(base * (1 + 0.01 * sin(it.epochSecond / 60.0 / 30.0)))) }
+            .toList()
     }
 
     /** 날짜로 정해지는 출렁이는 IV(같은 날짜는 항상 같은 값이라 DB에 나눠 쌓여도 이어진다). */

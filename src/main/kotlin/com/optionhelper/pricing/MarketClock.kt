@@ -35,6 +35,21 @@ object MarketClock {
         return !time.isBefore(OPEN) && time.isBefore(closeOf(date))
     }
 
+    /** 가장 최근에 정규장이 열린(또는 열려 있는) 날. 장 시작 전·휴장일이면 그 전 거래일. */
+    fun lastSessionDate(now: Instant): LocalDate {
+        val et = now.atZone(NEW_YORK)
+        var day = if (et.toLocalTime().isBefore(OPEN)) et.toLocalDate().minusDays(1) else et.toLocalDate()
+        while (!isTradingDay(day)) day = day.minusDays(1)
+        return day
+    }
+
+    /** 그 거래일 바로 전 거래일. */
+    fun previousTradingDay(date: LocalDate): LocalDate {
+        var day = date.minusDays(1)
+        while (!isTradingDay(day)) day = day.minusDays(1)
+        return day
+    }
+
     fun expiryAt(expiry: LocalDate): ZonedDateTime = ZonedDateTime.of(expiry, closeOf(expiry), NEW_YORK)
 
     fun expiryAtSeoul(expiry: LocalDate): ZonedDateTime = expiryAt(expiry).withZoneSameInstant(SEOUL)

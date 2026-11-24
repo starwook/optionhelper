@@ -2,6 +2,7 @@ package com.optionhelper.marketdata.alpaca
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.optionhelper.marketdata.DailyBar
+import com.optionhelper.marketdata.IntradayBar
 import com.optionhelper.marketdata.OccSymbol
 import com.optionhelper.marketdata.StockQuote
 import com.optionhelper.option.OptionQuote
@@ -14,6 +15,7 @@ import java.time.OffsetDateTime
  * - 옵션 스냅샷: snapshots{심볼: {latestQuote{bp, ap}, impliedVolatility, greeks{delta}}}, next_page_token
  * - 주식 스냅샷: latestTrade{p, t}, prevDailyBar{c}
  * - 일봉: bars{심볼: [{t, o, h, l, c}]}, next_page_token
+ * - 5분봉: 일봉과 같은 모양, t는 봉 시작 시각(UTC). 하루치(78개)라 한 페이지로 끝난다
  * - 옵션 일봉: bars{OCC 심볼: [{t, c, ...}]}, next_page_token (docs/외부API-명세.md 1-4)
  */
 object AlpacaParser {
@@ -71,6 +73,14 @@ object AlpacaParser {
             }
         return BarPage(bars, root.path("next_page_token").textOrNull())
     }
+
+    fun intradayBars(
+        symbol: String,
+        root: JsonNode,
+    ): List<IntradayBar> =
+        root.path("bars").path(symbol).map { bar ->
+            IntradayBar(OffsetDateTime.parse(bar.path("t").asText()).toInstant(), bar.path("c").asDouble())
+        }
 
     fun optionBars(root: JsonNode): OptionBarPage {
         val closes =

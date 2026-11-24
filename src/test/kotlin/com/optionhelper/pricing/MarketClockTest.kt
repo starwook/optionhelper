@@ -67,4 +67,18 @@ class MarketClockTest {
         assertThat(seoul.toLocalDate()).isEqualTo(LocalDate.of(2026, 11, 21))
         assertThat(seoul.hour).isEqualTo(6)
     }
+
+    @Test
+    fun `마지막 정규장 날짜 - 장중이면 오늘, 장 시작 전이면 전 거래일, 주말이면 금요일`() {
+        assertThat(MarketClock.lastSessionDate(et("2026-11-20T10:00:00"))).isEqualTo(friday)
+        assertThat(MarketClock.lastSessionDate(et("2026-11-20T08:00:00"))).isEqualTo(LocalDate.of(2026, 11, 19))
+        assertThat(MarketClock.lastSessionDate(et("2026-11-22T12:00:00"))).isEqualTo(friday)
+        // 2026-11-26 추수감사절 휴장
+        assertThat(MarketClock.lastSessionDate(et("2026-11-26T12:00:00"))).isEqualTo(LocalDate.of(2026, 11, 25))
+    }
+
+    @Test
+    fun `전 거래일 - 월요일이면 금요일`() {
+        assertThat(MarketClock.previousTradingDay(LocalDate.of(2026, 11, 23))).isEqualTo(friday)
+    }
 }
