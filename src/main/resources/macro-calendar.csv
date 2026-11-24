@@ -1,12 +1,14 @@
 type,date
-# 미국 경제지표 일정. 1년에 한 번 갱신한다(입력 2026-11-24, 근거: docs/데이터소스-조사.md 4절).
+# 미국 경제지표 일정. 1년에 한 번 갱신한다(입력 2026-11-24, 2026년 PCE 추가 2026-11-25, 근거: docs/데이터소스-조사.md 4절).
 # FOMC 14:00 ET(2027-10-27은 금리 결정 없음, 2027-12는 현행 Fed 일정에 없음), CPI·PPI·NFP·PCE 08:30 ET.
 # Fed https://www.federalreserve.gov/newsevents/pressreleases/monetary20261112a.htm
-# BLS https://www.bls.gov/schedule/2027/home.htm , BEA https://www.bea.gov/news/schedule/next-year
+# BLS https://www.bls.gov/schedule/2027/home.htm , BEA https://www.bea.gov/news/schedule/next-year , https://www.bea.gov/news/schedule/
+PCE,2026-11-25
 NFP,2026-12-04
 FOMC,2026-12-09
 CPI,2026-12-10
 PPI,2026-12-15
+PCE,2026-12-23
 NFP,2027-01-08
 CPI,2027-01-13
 PPI,2027-01-14

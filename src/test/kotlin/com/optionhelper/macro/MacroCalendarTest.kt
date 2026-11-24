@@ -52,6 +52,6 @@ class MacroCalendarTest {
 
     @Test
     fun `저장소의 일정 파일을 읽을 수 있다`() {
-        assertThat(MacroCalendarFile().events).hasSize(59)
+        assertThat(MacroCalendarFile().events).hasSize(61)
     }
 }
