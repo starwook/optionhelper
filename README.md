@@ -1,6 +1,6 @@
 # optionhelper
 
-미국 주식옵션(반도체 중심) 판단용 **조회 전용** 대시보드. 매매는 토스증권 앱에서 하고, 이 화면은 옆 PC·태블릿에 띄워 "옵션이 비싼지, 시장이 몇 % 움직인다고 보는지, 어떤 전략이 맞는 구간인지"를 본다. 주문 기능은 없다.
+미국 주식옵션(반도체 중심) 판단용 **조회 전용** 공개 대시보드. 주가는 Hyperliquid 주식 추종 선물 가격, 옵션 호가·IV·그릭스는 모두 블랙-숄즈로 계산한 **이론가(근사값)**다. 실제 시세(Alpaca·IBKR)는 재배포가 안 돼 쓰지 않는다(소유자 로그인 + 실제 시세는 TODO). 매매는 토스증권 앱에서 하고, 이 화면은 옆 PC·태블릿에 띄워 "옵션이 비싼지, 시장이 몇 % 움직인다고 보는지, 어떤 전략이 맞는 구간인지"를 본다. 주문 기능은 없다.
 
 기획과 결정 사항은 [docs/기획서.md](docs/기획서.md), 데이터 소스 근거는 [docs/데이터소스-조사.md](docs/데이터소스-조사.md).
 
@@ -11,7 +11,8 @@
    CREATE DATABASE optionhelper CHARACTER SET utf8mb4;
    ```
 2. `src/main/resources/application-local.yml.example`을 `application-local.yml`로 복사해 DB 계정과 키를 채운다(git에 올라가지 않는다).
-   - 키 없이 화면만 보려면 `source: fake`로 두면 된다(기본값). 화면에 "가짜 데이터"로 표시된다.
+   - 시세는 키가 필요 없다(Hyperliquid 공개 API, 기본값). 네트워크 없이 보려면 `optionhelper.market-data.source: fake`.
+   - 예전 설정 `source: alpaca`가 남아 있으면 앱이 뜨지 않는다. 그 줄을 지우거나 `hyperliquid`로 바꾼다.
 3. IntelliJ에서 `OptionHelperApplication`을 실행하고 http://localhost:8080 을 연다.
 
 테스트: `./gradlew test ktlintCheck`
@@ -20,18 +21,18 @@
 
 | 설정 | 값 | 설명 |
 |---|---|---|
-| `optionhelper.market-data.source` | `fake` / `alpaca` | 시세. IBKR은 계좌 준비 후 추가 예정(아래) |
+| `optionhelper.market-data.source` | `hyperliquid`(기본) / `fake` | 기초자산 가격. 옵션은 둘 다 이론가 |
+| `optionhelper.market-data.hyperliquid.dex` | `xyz` | Hyperliquid 배포자(종목 심볼 앞에 붙는 `xyz:`) |
 | `optionhelper.earnings.source` | `fake` / `alphavantage` | 실적발표일 |
 | `optionhelper.earnings.background-refresh` | `true` | 관심 종목 실적 일정을 백그라운드로 주 1회 갱신 |
 | `optionhelper.recorder.symbols` | `NVDA` | 장중 1분마다 체인을 저장할 종목(IV 퍼센타일·추이·복기용) |
 | `optionhelper.pricing.risk-free-rate` | `0.04` | 블랙-숄즈 무위험금리 |
 
 ### 키 발급
-- **Alpaca(무료)**: https://alpaca.markets 가입 → 대시보드에서 API Key 발급(Paper 계정 키로도 시세 조회 가능) → `key-id`, `secret-key`에 넣는다. 옵션 호가는 실시간이지만 가공된 참고값(indicative)이고 체결가는 15분 지연이다.
-- **Alpha Vantage(무료, 하루 25회)**: https://www.alphavantage.co/support/#api-key 에서 이메일로 발급 → `api-key`에 넣는다. 앱은 관심 종목 실적 일정을 백그라운드로 종목당 일주일에 한 번만 부른다(9종목 × 2회).
+- **Alpha Vantage(무료, 하루 25회)**: https://www.alphavantage.co/support/#api-key 에서 이메일로 발급 → `api-key`에 넣는다. 앱은 관심 종목 실적 일정을 백그라운드로 종목당 일주일에 한 번만 부른다(10종목 × 2회).
 
-### IBKR (계좌 준비 후)
-실시간 OPRA 호가(월 $1.50)용. 계좌가 열리면 아래를 준비해 주면 `marketdata/ibkr` 구현을 추가한다.
+### IBKR (TODO: 소유자 로그인 시에만 쓰는 실제 시세)
+실시간 OPRA 호가(월 $1.50)용. 재배포가 안 되므로 공개 화면에는 쓰지 않고, 로그인 기능과 함께 붙인다. 계좌가 열리면 아래를 준비해 주면 `marketdata/ibkr` 구현을 추가한다.
 1. IBKR Pro 계좌, 순자산 $500 이상, 시세 구독: OPRA Top of Book(L1), 무료 Cboe One + IEX
 2. IB Gateway 설치 → API 설정에서 소켓 접속 허용, **Read-Only API 체크**(주문 원천 차단)
 3. IBKR 사이트에서 TWS API(Java) 내려받기 → `TwsApi.jar`를 `libs/`에 둔다(Maven에 없음)
@@ -57,7 +58,7 @@
 
 ## 일정 화면 (상단 "일정" 버튼)
 
-종목과 상관없는 월 달력. 한 날짜 칸에 경제지표(FOMC·CPI·PPI·고용·PCE, 한국 시간)와 관심 종목 실적발표(장전/장후)를 같이 보여 준다. 날짜는 미국 기준. 아래에 나스닥100(QQQ) 월별 수익률(평균·상승 확률·연도별, 이번 달 강조).
+종목과 상관없는 월 달력. 한 날짜 칸에 경제지표(FOMC·CPI·PPI·고용·PCE, 한국 시간)와 관심 종목 실적발표(장전/장후)를 같이 보여 준다. 날짜는 미국 기준. 아래에 나스닥100 월별 수익률(Hyperliquid `xyz:XYZ100` 선물 일봉 기준)(평균·상승 확률·연도별, 이번 달 강조).
 
 ## 복기 화면 (`/review.html`, 상단 "복기" 링크)
 
@@ -70,7 +71,7 @@
 - **보유 옵션 시나리오**: 종류·행사가·만기·옵션 가격(토스에서 보는 값)·주가를 넣으면 IV·델타·하루 세타·베가와, 주가가 그대로일 때 날짜별(1주 간격, 만기 전날, 만기) × IV별(지금 / 종목 IV가 1년 중앙값·최저로 돌아갈 때 / ±10%p) 가격 표
 - **관심 종목 비교**: 반도체 10종목의 IV·Rank·퍼센타일·IV÷HV
 
-IV 기록은 데이터 소스가 과거 30일 IV를 주면(IBKR `OPTION_IMPLIED_VOLATILITY` 일봉) 그걸 `daily_iv` 테이블에 쌓아 쓰고(한 번 받은 날짜는 다시 안 받음), Alpaca는 과거 IV를 주지 않아 과거 옵션 일봉(만기된 계약 포함, 2024-02~)으로 날마다 약 30일 월물 ATM IV를 역산해 같은 테이블에 쌓는다. 그것도 없으면 앱이 장중에 쌓은 스냅샷의 하루 마지막 ATM IV로 대신한다. 어느 쪽인지 화면에 표시된다. API: `/api/iv/history?symbol=`, `/api/iv/summary`, `/api/scenario?symbol=&type=CALL&strike=&expiry=&price=&spot=`.
+IV 기록은 데이터 소스가 주는 일별 IV를 `daily_iv` 테이블에 소스별로 쌓아 쓴다(한 번 받은 날짜는 다시 안 받음). 지금 소스는 날마다 그날까지의 HV20으로 정한 이론가 ATM IV라서, IV Rank·퍼센타일은 사실상 HV의 위치다. 그것도 없으면 앱이 장중에 쌓은 스냅샷의 하루 마지막 ATM IV로 대신한다(스냅샷도 소스별로 나눠 읽는다). 어느 쪽인지 화면에 표시된다. API: `/api/iv/history?symbol=`, `/api/iv/summary`, `/api/scenario?symbol=&type=CALL&strike=&expiry=&price=&spot=`.
 
 ## 구조
 

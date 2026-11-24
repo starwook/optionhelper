@@ -101,7 +101,8 @@ class DashboardService(
         val bars = loadOrEmpty("일봉", warnings) { dailyBars.bars(symbol) }
         val events = loadOrEmpty("실적 일정", warnings) { earnings.events(symbol) }
         val today = now.atZone(MarketClock.NEW_YORK).toLocalDate()
-        val previousClose = previousClose(bars, today) ?: quote.previousClose
+        // 전일 종가는 데이터 소스가 정한다(맨 위 실시간 현재가와 같은 값). 소스가 안 주면 일봉 종가
+        val previousClose = quote.previousClose ?: previousClose(bars, today)
         val realized =
             if (previousClose != null && expectedMove != null) RealizedVsExpected.of(previousClose, spot, expectedMove.pct) else null
 
@@ -289,7 +290,7 @@ class DashboardService(
 
     private fun average(vararg values: Double?): Double? = values.filterNotNull().takeIf { it.isNotEmpty() }?.average()
 
-    /** 공식 통합(SIP) 일봉 중 오늘(ET) 전의 마지막 종가. 개장 전 스냅샷의 prevDailyBar는 하루 밀릴 수 있어 이쪽을 우선한다. */
+    /** 일봉 중 오늘(ET) 전의 마지막 종가. 데이터 소스가 전일 종가를 안 줄 때만 쓴다. */
     private fun previousClose(
         bars: List<DailyBar>,
         today: LocalDate,

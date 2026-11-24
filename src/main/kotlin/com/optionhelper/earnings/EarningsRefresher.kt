@@ -1,6 +1,6 @@
 package com.optionhelper.earnings
 
-import com.optionhelper.watchlist.SemiconductorWatchlist
+import com.optionhelper.watchlist.WatchedSymbol
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -17,7 +17,7 @@ class EarningsRefresher(
     @Scheduled(initialDelay = 15_000, fixedDelay = 6 * 60 * 60 * 1000L)
     fun refresh() {
         if (!enabled) return
-        SemiconductorWatchlist.STOCKS.forEach { symbol ->
+        WatchedSymbol.STOCKS.forEach { symbol ->
             // 연달아 부르면 Alpha Vantage 연속 호출 제한에 걸리므로, 실제로 부른 다음엔 잠깐 쉰다
             if (earnings.refreshIfStale(symbol)) Thread.sleep(CALL_GAP_MS)
         }

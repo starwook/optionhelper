@@ -93,7 +93,7 @@ class IvHistoryService(
         val hv20 = hvByDate.maxByOrNull { it.key }?.value
 
         if (points.isEmpty()) {
-            warnings += "IV 기록이 없습니다. 과거 IV를 주는 소스(IBKR)를 연결하거나, 장중에 앱을 켜 두면 하루 한 점씩 쌓입니다."
+            warnings += "IV 기록이 없습니다. 일봉이 20거래일보다 적으면(새로 상장된 종목) 아직 계산할 수 없습니다."
         } else if (points.size < MIN_SAMPLES) {
             warnings += "IV 기록이 ${points.size}일치뿐이라 IV Rank·퍼센타일은 참고만 하세요."
         }
@@ -145,7 +145,7 @@ class IvHistoryService(
         symbol: String,
         from: LocalDate,
     ): List<Pair<LocalDate, Double>> =
-        snapshots.findIvPoints(symbol, from.atStartOfDay().toInstant(ZoneOffset.UTC))
+        snapshots.findIvPoints(source.feed.name, symbol, from.atStartOfDay().toInstant(ZoneOffset.UTC))
             .groupBy { it.time.atZone(MarketClock.NEW_YORK).toLocalDate() }
             .map { (date, list) -> date to list.last().iv }
             .sortedBy { it.first }

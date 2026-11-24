@@ -7,7 +7,7 @@ import com.optionhelper.macro.MacroCalendarFile
 import com.optionhelper.marketdata.DailyBarService
 import com.optionhelper.pricing.MarketClock
 import com.optionhelper.seasonality.Seasonality
-import com.optionhelper.watchlist.SemiconductorWatchlist
+import com.optionhelper.watchlist.WatchedSymbol
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -43,7 +43,7 @@ class ScheduleService(
                 }
 
         val earningsEvents =
-            SemiconductorWatchlist.STOCKS.flatMap { symbol ->
+            WatchedSymbol.STOCKS.flatMap { symbol ->
                 runCatching { earnings.events(symbol) }
                     .onFailure { log.warn("실적 일정 조회 실패({}): {}", symbol, it.message) }
                     .getOrElse {
@@ -72,9 +72,9 @@ class ScheduleService(
     }
 
     companion object {
-        // 나스닥 지수 자체는 시세 소스에 없어 나스닥100 ETF로 대신한다
-        const val NASDAQ_PROXY = "QQQ"
-        const val NASDAQ_LABEL = "나스닥100(QQQ)"
+        // 나스닥 지수 자체는 시세 소스에 없어 Hyperliquid 나스닥100 추종 선물(xyz:XYZ100)로 대신한다(docs/데이터소스-조사.md 11-3)
+        const val NASDAQ_PROXY = "XYZ100"
+        const val NASDAQ_LABEL = "나스닥100(XYZ100 선물)"
 
         // 달력에서 이번 달 지난 날짜도 보이게 한 달 전부터
         private const val PAST_DAYS = 31L

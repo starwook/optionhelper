@@ -5,8 +5,9 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * 시세 데이터 소스. 구현체(가짜, Alpaca, 나중에 IBKR)를 바꿔 끼워도 나머지 코드는 그대로다.
- * 설정 `optionhelper.market-data.source` 값으로 하나만 빈으로 뜬다.
+ * 시세 데이터 소스. 나머지 코드(대시보드·전략·차트 등)는 이 인터페이스만 보므로 구현체를 바꿔도 그대로 동작한다.
+ * 지금 구현은 공개 사이트용 [ModeledMarketDataSource](기초자산 가격 + 이론가 옵션) 하나다.
+ * TODO(로그인): 실제 시세(IBKR/Alpaca)는 재배포 불가라 소유자 로그인 때만 쓰는 구현으로 추가한다(docs/외부API-명세.md 1·3절).
  */
 interface MarketDataSource {
     val feed: DataFeed
@@ -62,6 +63,7 @@ data class StockQuote(
 
 enum class FeedKind(val label: String) {
     REALTIME("실시간"),
+    APPROXIMATE("근사값"),
     INDICATIVE("실시간 가공 호가"),
     DELAYED("지연"),
     SIMULATED("가짜 데이터"),

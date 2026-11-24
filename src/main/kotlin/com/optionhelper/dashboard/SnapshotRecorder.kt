@@ -47,6 +47,7 @@ class SnapshotRecorder(
                         straddle = d.straddle,
                         atmIv = d.volatility.atmIvCalc ?: d.volatility.atmIvApi,
                         chainJson = objectMapper.writeValueAsString(d.chain),
+                        source = d.feed.name,
                     ),
                 )
             }.onFailure { log.warn("스냅샷 저장 실패({}): {}", symbol, it.message) }
