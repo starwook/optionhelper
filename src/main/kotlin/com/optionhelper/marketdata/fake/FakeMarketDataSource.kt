@@ -2,6 +2,7 @@ package com.optionhelper.marketdata.fake
 
 import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.IntradayBar
+import com.optionhelper.marketdata.SessionClose
 import com.optionhelper.marketdata.StockQuote
 import com.optionhelper.marketdata.UnderlyingPriceSource
 import com.optionhelper.pricing.MarketClock
@@ -28,7 +29,8 @@ class FakeMarketDataSource(private val clock: Clock) : UnderlyingPriceSource {
         // 시간에 따라 천천히 출렁이게
         val minutes = clock.instant().epochSecond / 60.0
         val price = base * (1 + 0.01 * sin(minutes / 30.0))
-        return StockQuote(symbol, round2(price), round2(base * 0.99), clock.instant())
+        val lastClose = SessionClose(MarketClock.lastClosedSessionDate(clock.instant()), round2(base * 0.99), round2(base * 0.98))
+        return StockQuote(symbol, round2(price), round2(base * 0.99), clock.instant(), lastClose)
     }
 
     override fun dailyBars(

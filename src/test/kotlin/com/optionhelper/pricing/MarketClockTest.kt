@@ -13,6 +13,31 @@ class MarketClockTest {
     private val friday = LocalDate.of(2026, 11, 20)
 
     @Test
+    fun `거래 시간대는 프리마켓 04시, 정규장 09시30분, 애프터마켓 16~20시`() {
+        assertThat(MarketClock.sessionAt(et("2026-11-20T03:59:00"))).isEqualTo(MarketSession.CLOSED)
+        assertThat(MarketClock.sessionAt(et("2026-11-20T04:00:00"))).isEqualTo(MarketSession.PRE_MARKET)
+        assertThat(MarketClock.sessionAt(et("2026-11-20T09:30:00"))).isEqualTo(MarketSession.REGULAR)
+        assertThat(MarketClock.sessionAt(et("2026-11-20T16:00:00"))).isEqualTo(MarketSession.AFTER_HOURS)
+        assertThat(MarketClock.sessionAt(et("2026-11-20T20:00:00"))).isEqualTo(MarketSession.CLOSED)
+        assertThat(MarketClock.sessionAt(et("2026-11-21T12:00:00"))).isEqualTo(MarketSession.CLOSED) // 토요일
+    }
+
+    @Test
+    fun `조기 마감일 애프터마켓은 13~17시`() {
+        // 2026-11-27 추수감사절 다음 날
+        assertThat(MarketClock.sessionAt(et("2026-11-27T13:30:00"))).isEqualTo(MarketSession.AFTER_HOURS)
+        assertThat(MarketClock.sessionAt(et("2026-11-27T17:00:00"))).isEqualTo(MarketSession.CLOSED)
+    }
+
+    @Test
+    fun `마감가 기준일은 오늘 장이 끝났으면 오늘, 아니면 전 거래일`() {
+        assertThat(MarketClock.lastClosedSessionDate(et("2026-11-20T15:59:00"))).isEqualTo(LocalDate.of(2026, 11, 19))
+        assertThat(MarketClock.lastClosedSessionDate(et("2026-11-20T16:00:00"))).isEqualTo(friday)
+        // 주말·다음 주 월요일 개장 전은 금요일
+        assertThat(MarketClock.lastClosedSessionDate(et("2026-11-23T08:00:00"))).isEqualTo(friday)
+    }
+
+    @Test
     fun `0DTE 장중이면 마감까지 남은 시간`() {
         assertThat(MarketClock.tradingHoursUntil(et("2026-11-20T14:30:00"), friday)).isCloseTo(1.5, within(1e-9))
     }

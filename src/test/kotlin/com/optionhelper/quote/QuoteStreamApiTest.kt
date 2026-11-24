@@ -26,6 +26,7 @@ class QuoteStreamApiTest {
         stream.push()
         val body = result.response.getContentAsString(Charsets.UTF_8)
         assertThat(body).startsWith("data:").contains("\"symbol\":\"NVDA\"").contains("\"price\":")
+        assertThat(body).contains("\"session\":").contains("\"lastClose\":{")
     }
 
     @Test

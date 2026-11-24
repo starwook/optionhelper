@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.IntradayBar
+import com.optionhelper.marketdata.SessionClose
 import com.optionhelper.marketdata.StockQuote
 import com.optionhelper.marketdata.UnderlyingPriceSource
 import com.optionhelper.pricing.MarketClock
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * 공개 사이트의 기초자산 가격: Hyperliquid 주식 추종 선물(xyz:NVDA 등). 실제 주가가 아니라 근사값이다.
  * 현재가는 웹소켓 마크 가격(약 1초마다), 아직 없거나 오래됐으면 REST(metaAndAssetCtxs). 봉은 REST candleSnapshot.
- * 전일 종가는 전 거래일 16:00 ET(정규장 마감) 시점 선물 가격 = 그날 마지막 5분봉 종가.
+ * 전일 종가·정규장 마감가는 그 거래일 16:00 ET(정규장 마감) 시점 선물 가격 = 그날 마지막 5분봉 종가.
  */
 @Component
 @ConditionalOnProperty(prefix = "optionhelper.market-data", name = ["source"], havingValue = "hyperliquid", matchIfMissing = true)
@@ -43,8 +44,8 @@ class HyperliquidPriceSource(
     private val client = restClientBuilder.baseUrl(properties.infoUrl).build()
     private val stream = HyperliquidPriceStream(properties, WatchedSymbol.SYMBOLS.map { properties.coin(it) }, objectMapper, clock)
 
-    // 종목별 (뉴욕 날짜, 전일 종가). 하루 한 번만 봉을 받는다.
-    private val previousCloses = ConcurrentHashMap<String, Pair<LocalDate, Double?>>()
+    // (종목, 거래일) → 그날 정규장 마감가. 지난 날 값은 바뀌지 않으니 한 번만 봉을 받는다(못 구한 날도 기억해 매초 재요청하지 않는다).
+    private val regularCloses = ConcurrentHashMap<Pair<String, LocalDate>, CachedClose>()
 
     @Scheduled(fixedDelay = RECONNECT_CHECK_MS, initialDelay = 0)
     fun keepStreamAlive() = stream.ensureConnected()
@@ -57,17 +58,29 @@ class HyperliquidPriceSource(
         val now = clock.instant()
         val streamed = stream.mark(coin)?.takeIf { Duration.between(it.at, now) < STREAM_MAX_AGE }
         val (price, asOf) = streamed?.let { it.price to it.at } ?: (restMark(coin) to now)
-        return StockQuote(symbol.uppercase(), price, previousClose(symbol), asOf)
+        val today = now.atZone(MarketClock.NEW_YORK).toLocalDate()
+        val lastDate = MarketClock.lastClosedSessionDate(now)
+        val lastClose =
+            regularClose(
+                symbol,
+                lastDate,
+            )?.let { SessionClose(lastDate, it, regularClose(symbol, MarketClock.previousTradingDay(lastDate))) }
+        return StockQuote(symbol.uppercase(), price, regularClose(symbol, MarketClock.previousTradingDay(today)), asOf, lastClose)
     }
 
-    /** 오늘(뉴욕 날짜) 전 마지막 거래일의 정규장 마감 가격. 5분봉이 없으면 UTC 일봉 종가로 대신한다. */
-    private fun previousClose(symbol: String): Double? {
-        val today = clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate()
-        previousCloses[symbol]?.takeIf { it.first == today }?.let { return it.second }
+    /** 그 거래일 정규장 마감 가격(마지막 5분봉 종가). 5분봉이 없으면 UTC 일봉 종가로 대신한다. */
+    private fun regularClose(
+        symbol: String,
+        date: LocalDate,
+    ): Double? {
+        val key = symbol to date
+        regularCloses[key]?.let { return it.close }
         val close =
-            intradayBars(symbol, MarketClock.previousTradingDay(today)).lastOrNull()?.close
-                ?: dailyBars(symbol, today.minusDays(PREVIOUS_CLOSE_LOOKBACK_DAYS)).lastOrNull()?.close
-        previousCloses[symbol] = today to close
+            intradayBars(symbol, date).lastOrNull()?.close
+                ?: dailyBars(symbol, date).firstOrNull { it.date == date }?.close
+        // 마감 직후엔 마지막 봉이 아직 덜 찼을 수 있어 잠시 뒤부터 기억한다
+        val settledAt = ZonedDateTime.of(date, MarketClock.closeOf(date), MarketClock.NEW_YORK).toInstant().plus(CLOSE_SETTLE)
+        if (clock.instant().isAfter(settledAt)) regularCloses[key] = CachedClose(close)
         return close
     }
 
@@ -130,7 +143,9 @@ class HyperliquidPriceSource(
     private companion object {
         const val RECONNECT_CHECK_MS = 10_000L
         val STREAM_MAX_AGE: Duration = Duration.ofSeconds(60)
-        const val PREVIOUS_CLOSE_LOOKBACK_DAYS = 10L
+        val CLOSE_SETTLE: Duration = Duration.ofMinutes(1)
         const val CANDLES_PER_REQUEST = 500
     }
 }
+
+private data class CachedClose(val close: Double?)

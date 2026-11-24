@@ -2,7 +2,9 @@ package com.optionhelper.dashboard
 
 import com.optionhelper.earnings.EarningsEvent
 import com.optionhelper.earnings.EarningsMoveStats
+import com.optionhelper.marketdata.SessionClose
 import com.optionhelper.option.IvPoint
+import com.optionhelper.pricing.MarketSession
 import com.optionhelper.pricing.OptionType
 import com.optionhelper.signal.StrategySignal
 import com.optionhelper.strategy.Breakeven
@@ -36,6 +38,9 @@ data class DashboardResponse(
     // 현재가 체결 시각(장 밖이면 프리장·장후 체결)
     val spotAsOfKst: String,
     val previousClose: Double?,
+    // 지금 거래 시간대와 정규장이 끝난 가장 최근 거래일 마감가(맨 위 현재가 줄, 실시간 값이 오기 전)
+    val session: MarketSession,
+    val lastClose: SessionClose?,
     val atm: AtmView?,
     val straddle: Double?,
     val expectedMove: ExpectedMove?,
