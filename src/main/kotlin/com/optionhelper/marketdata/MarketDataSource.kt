@@ -33,6 +33,9 @@ interface MarketDataSource {
         from: LocalDate,
     ): List<DailyBar>
 
+    /** [dailyImpliedVolatility]가 무엇을 잰 값인지. IV 히스토리 화면에 기준으로 표시한다. */
+    val historicalIvLabel: String get() = "데이터 소스의 30일 IV"
+
     /**
      * from부터 어제까지 기초자산의 일별 30일 IV, 오래된 순. IV 히스토리(IV Rank·퍼센타일)에 쓴다.
      * IBKR은 `OPTION_IMPLIED_VOLATILITY` 일봉으로 구현한다. 과거 IV를 주지 않는 소스는 빈 목록(그러면 앱이 쌓은 스냅샷으로 대신한다).

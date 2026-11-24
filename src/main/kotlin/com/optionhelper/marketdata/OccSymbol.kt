@@ -2,11 +2,18 @@ package com.optionhelper.marketdata
 
 import com.optionhelper.pricing.OptionType
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 /** OCC 옵션 심볼(예: NVDA261120C00157500 = 루트 + yyMMdd + C/P + 행사가×1000 8자리). */
 data class OccSymbol(val root: String, val expiry: LocalDate, val type: OptionType, val strike: Double) {
+    /** OCC 심볼 문자열(예: NVDA261120C00157500). */
+    fun format(): String =
+        root + expiry.format(DATE_FORMAT) + (if (type == OptionType.CALL) "C" else "P") +
+            "%08d".format(Math.round(strike * 1000))
+
     companion object {
         private const val TAIL_LENGTH = 15
+        private val DATE_FORMAT = DateTimeFormatter.ofPattern("yyMMdd")
 
         fun parse(symbol: String): OccSymbol? {
             if (symbol.length <= TAIL_LENGTH) return null
