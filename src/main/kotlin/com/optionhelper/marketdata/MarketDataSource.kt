@@ -59,7 +59,12 @@ data class StockQuote(
     val previousClose: Double?,
     // 현재가(latestTrade)의 체결 시각. 장 밖이면 프리장·장후 체결일 수 있다.
     val asOf: Instant,
+    // 정규장이 끝난 가장 최근 거래일의 마감가. 장 밖에 "정규장 $X로 마감 · 애프터마켓 ±"로 보여 준다
+    val lastClose: SessionClose? = null,
 )
+
+/** 한 거래일 정규장 마감가와 그 전 거래일 마감가(그날 등락 기준). */
+data class SessionClose(val date: LocalDate, val close: Double, val previousClose: Double?)
 
 enum class FeedKind(val label: String) {
     REALTIME("실시간"),

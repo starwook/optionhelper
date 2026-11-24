@@ -149,6 +149,8 @@ class DashboardService(
             spot = spot,
             spotAsOfKst = format(quote.asOf, MarketClock.SEOUL, "KST"),
             previousClose = previousClose,
+            session = MarketClock.sessionAt(now),
+            lastClose = quote.lastClose,
             atm = atm,
             straddle = straddle,
             expectedMove = expectedMove,

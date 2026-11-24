@@ -559,7 +559,7 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 개수 한도 | 요청당 최대 500개, 조회 가능한 최근 봉 최대 5000개 | GPT [H2] |
 | 과거 범위 | 상장일부터. 실측: `xyz:NVDA` 2025-11-12, `xyz:SNDK` 2026-01-12, `xyz:SKHY` 2026-07-09, `xyz:SOXL` 2026-08-06 | 실측 |
 | 5m 봉 | 같은 형식, 24시간 이어짐(정규장 밖도 있음) | 실측 |
-| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에. 전일 종가 = 전 거래일 마지막 5분봉(15:55 시작) 종가 = 16:00 ET 가격 | |
+| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에. 전일 종가 = 전 거래일 마지막 5분봉(15:55 시작) 종가 = 16:00 ET 가격. 장 밖 표시용 "정규장 마감가"도 같은 방식(정규장이 끝난 가장 최근 거래일의 마지막 5분봉 종가, 2026-11-25). 거래일별로 한 번 받아 기억하되, 마감 1분 안에는 마지막 봉이 덜 찼을 수 있어 기억하지 않는다 | |
 
 - [H1] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
 - [H2] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint

@@ -32,6 +32,7 @@
   .quote-sym { font-size: 16px; font-weight: 700; color: var(--muted); }
   .quote-price { font-size: 34px; font-weight: 800; line-height: 1.1; }
   .quote-chg { font-size: 17px; font-weight: 700; }
+  .quote-ext { font-size: 15px; font-weight: 400; color: var(--muted); }
   .ranges, .pages { display: flex; gap: 4px; }
   .ranges button, .pages button { background: none; border: 1px solid transparent; border-radius: 8px; padding: 3px 10px; color: var(--muted); cursor: pointer; font-size: 14px; }
   .ranges button[aria-pressed="true"], .pages button[aria-pressed="true"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
@@ -363,6 +364,15 @@ function renderHeader(d) {
 }
 
 // ── 주가·차트 ──
+const SESSION_LABEL = { PRE_MARKET: '프리마켓에서', AFTER_HOURS: '애프터마켓에서', CLOSED: '장 마감 · 선물' };
+
+/** base 대비 now 등락(+$0.02 (0.06%)), 색 포함. base가 없으면 빈 문자열. */
+function move(now, base) {
+  if (now == null || !base) return '';
+  const ch = now - base;
+  return `<span class="${tone(ch)}">${ch >= 0 ? '+' : '−'}$${n2(Math.abs(ch))} (${signed(ch / base, 2)})</span>`;
+}
+
 function renderQuote() {
   const d = state.data, c = state.chart;
   if (!d || d.symbol !== state.symbol.toUpperCase()) return;
@@ -371,13 +381,15 @@ function renderQuote() {
   const spot = live ? live.price : d.spot;
   const prev = live?.previousClose ?? d.previousClose;
   const spotTime = new Date(live ? live.asOf : d.asOf);
-  const change = prev ? spot - prev : null;
+  const phase = live ? live.session : d.session;
+  const last = live ? live.lastClose : d.lastClose;
+  const extended = phase !== 'REGULAR' && last;
   $('qSym').textContent = d.symbol;
   $('qPrice').textContent = '$' + n2(spot);
-  // 장 밖이면 정규장 밖 가격이라 시각을 같이 보여 준다
-  const kst = spotTime.toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour12: false });
-  $('qChg').innerHTML = (change == null ? '' : `<span class="${tone(change)}">${change >= 0 ? '+' : '−'}$${n2(Math.abs(change))} (${signed(change / prev, 2)})</span>`)
-    + (d.marketOpen ? '' : ` <span class="feed-warn" style="font-size:14px;font-weight:400">장 밖 ${esc(kst)} KST</span>`);
+  // 정규장은 전일 종가 대비, 장 밖은 증권사 앱처럼 "정규장 $X로 마감 ±(그날 등락) · 애프터마켓에서 ±(마감가 대비)"
+  $('qChg').innerHTML = extended
+    ? `<span class="quote-ext">정규장 $${n2(last.close)}로 마감 ${move(last.close, last.previousClose)} · ${SESSION_LABEL[phase]} ${move(spot, last.close)}</span>`
+    : move(spot, prev);
   if (!c || c.error || c.symbol !== d.symbol) {
     $('qChart').innerHTML = `<div class="empty">${esc(c?.error || '차트 불러오는 중…')}</div>`;
     $('qNote').textContent = '';
@@ -405,6 +417,7 @@ function renderQuote() {
   $('qNote').textContent = [
     session,
     day && c.previousClose ? `점선 = 전일 종가 ${n2(c.previousClose)}` : null,
+    extended ? '장 밖 등락은 24시간 거래되는 선물 가격 기준(실제 프리·애프터마켓 체결가 아님)' : null,
     m ? `회색 띠 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(spot - m.dollars)} ~ ${n2(spot + m.dollars)}` : null,
   ].filter(Boolean).join(' · ');
 }

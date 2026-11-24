@@ -17,6 +17,8 @@ object MarketClock {
     val SEOUL: ZoneId = ZoneId.of("Asia/Seoul")
     val OPEN: LocalTime = LocalTime.of(9, 30)
     val CLOSE: LocalTime = LocalTime.of(16, 0)
+    val PRE_MARKET_OPEN: LocalTime = LocalTime.of(4, 0)
+    val AFTER_HOURS_LENGTH: Duration = Duration.ofHours(4)
 
     const val DAYS_PER_YEAR = 365.0
     const val TRADING_HOURS_PER_DAY = 6.5
@@ -33,6 +35,29 @@ object MarketClock {
         if (!isTradingDay(date)) return false
         val time = et.toLocalTime()
         return !time.isBefore(OPEN) && time.isBefore(closeOf(date))
+    }
+
+    /** now가 어느 거래 시간대인지. 애프터마켓은 정규장 마감부터 4시간. */
+    fun sessionAt(now: Instant): MarketSession {
+        val et = now.atZone(NEW_YORK)
+        val date = et.toLocalDate()
+        if (!isTradingDay(date)) return MarketSession.CLOSED
+        val time = et.toLocalTime()
+        val close = closeOf(date)
+        return when {
+            time.isBefore(PRE_MARKET_OPEN) -> MarketSession.CLOSED
+            time.isBefore(OPEN) -> MarketSession.PRE_MARKET
+            time.isBefore(close) -> MarketSession.REGULAR
+            time.isBefore(close.plus(AFTER_HOURS_LENGTH)) -> MarketSession.AFTER_HOURS
+            else -> MarketSession.CLOSED
+        }
+    }
+
+    /** 정규장이 이미 끝난 가장 최근 거래일. 오늘 장이 끝났으면 오늘, 아니면 그 전 거래일. */
+    fun lastClosedSessionDate(now: Instant): LocalDate {
+        val et = now.atZone(NEW_YORK)
+        val date = et.toLocalDate()
+        return if (isTradingDay(date) && !et.toLocalTime().isBefore(closeOf(date))) date else previousTradingDay(date)
     }
 
     /** 가장 최근에 정규장이 열린(또는 열려 있는) 날. 장 시작 전·휴장일이면 그 전 거래일. */

@@ -1,6 +1,9 @@
 package com.optionhelper.quote
 
 import com.optionhelper.marketdata.MarketDataSource
+import com.optionhelper.marketdata.SessionClose
+import com.optionhelper.pricing.MarketClock
+import com.optionhelper.pricing.MarketSession
 import com.optionhelper.watchlist.WatchedSymbol
 import org.slf4j.LoggerFactory
 import org.springframework.http.MediaType
@@ -14,8 +17,15 @@ import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
-/** 화면 맨 위 현재가 한 줄. */
-data class LiveQuote(val symbol: String, val price: Double, val previousClose: Double?, val asOf: Instant)
+/** 화면 맨 위 현재가 한 줄. session·lastClose로 장 밖엔 "정규장 $X로 마감 · 애프터마켓 ±"를 보여 준다. */
+data class LiveQuote(
+    val symbol: String,
+    val price: Double,
+    val previousClose: Double?,
+    val asOf: Instant,
+    val session: MarketSession,
+    val lastClose: SessionClose?,
+)
 
 /**
  * 현재가를 브라우저로 밀어 준다(SSE). 1초마다 구독자가 있는 종목만 데이터 소스에서 현재가를 읽어, 바뀌었으면 보낸다.
@@ -51,7 +61,7 @@ class QuoteStream(private val source: MarketDataSource) {
                 runCatching { source.stockQuote(symbol) }
                     .onFailure { log.debug("{} 현재가를 못 읽음: {}", symbol, it.message) }
                     .getOrNull() ?: return@forEach
-            val live = LiveQuote(symbol, quote.price, quote.previousClose, quote.asOf)
+            val live = LiveQuote(symbol, quote.price, quote.previousClose, quote.asOf, MarketClock.sessionAt(quote.asOf), quote.lastClose)
             if (live == lastSent[symbol]) return@forEach
             lastSent[symbol] = live
             emitters.forEach { send(it, live) }
