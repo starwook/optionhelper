@@ -96,7 +96,7 @@ async function show(button) {
         }).join('')}</tbody></table></div></div>
     <div class="card"><h2>그때 체인</h2><div class="scroll"><table>
       <thead><tr><th>콜 매수${term('bidAsk')}</th><th>매도</th><th class="call">중간${term('mid')}</th><th style="text-align:center">행사가${term('strike')}</th><th class="put">중간</th><th>풋 매수</th><th>매도</th></tr></thead>
-      <tbody>${r.chain.map((c) => `<tr class="${c.atm ? 'atm' : ''}">${callLeg(c.call)}<td class="strike">${c.strike}</td>${putLeg(c.put)}</tr>`).join('')}</tbody>
+      <tbody>${[...r.chain].sort((a, b) => b.strike - a.strike).map((c) => `<tr class="${c.atm ? 'atm' : ''}">${callLeg(c.call)}<td class="strike">${c.strike}</td>${putLeg(c.put)}</tr>`).join('')}</tbody>
     </table></div></div>`;
 }
 
