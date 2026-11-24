@@ -220,8 +220,8 @@ class DashboardService(
             type = event.type.name,
             label = event.type.label,
             date = event.date,
-            timeEt = format(at, MarketClock.NEW_YORK, "ET"),
-            timeKst = format(at, MarketClock.SEOUL, "KST"),
+            timeEt = at.atZone(MarketClock.NEW_YORK).format(HOUR_MINUTE) + " ET",
+            timeKst = at.atZone(MarketClock.SEOUL).format(HOUR_MINUTE) + " KST",
             daysUntil = MacroCalendar.daysUntil(event, today),
             beforeExpiry = event.reactsBy(expiry),
         )
@@ -300,6 +300,7 @@ class DashboardService(
         private val CACHE_TTL: Duration = Duration.ofSeconds(5)
         private val EXPIRATION_TTL: Duration = Duration.ofMinutes(10)
         private val TIME_FORMAT: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm:ss")
+        private val HOUR_MINUTE: DateTimeFormatter = DateTimeFormatter.ofPattern("MM-dd HH:mm")
         private val MONTH_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("MM/dd")
         private const val MACRO_UPCOMING = 10
         private const val MACRO_REFRESH_DAYS = 60L

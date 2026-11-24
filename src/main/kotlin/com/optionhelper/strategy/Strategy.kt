@@ -10,14 +10,26 @@ data class OptionLeg(
     val quantity: Int,
 )
 
-enum class StrategyKind(val label: String) {
-    LONG_STRADDLE("롱 스트래들"),
-    LONG_STRANGLE("롱 스트랭글"),
-    SHORT_PUT("숏 풋"),
-    BULL_CALL_SPREAD("불 콜 스프레드"),
-    BEAR_PUT_SPREAD("베어 풋 스프레드"),
-    BULL_PUT_CREDIT_SPREAD("불 풋 크레딧 스프레드"),
-    BEAR_CALL_CREDIT_SPREAD("베어 콜 크레딧 스프레드"),
+/** 사용자가 주가를 어떻게 보는가. 전략 화면은 이 질문부터 고르게 한다. */
+enum class MarketView(val label: String) {
+    BIG_MOVE("크게 움직일 것 같다"),
+    UP("오를 것 같다"),
+    DOWN("내릴 것 같다"),
+    NOT_DOWN("안 떨어질 것 같다"),
+    NOT_UP("안 오를 것 같다"),
+}
+
+/**
+ * 전략 종류. label은 교과서 이름, plainName은 화면에서 먼저 보여 줄 쉬운 이름, view는 어떤 전망일 때 쓰는 전략인지.
+ */
+enum class StrategyKind(val label: String, val plainName: String, val view: MarketView) {
+    LONG_STRADDLE("롱 스트래들", "같은 가격 콜+풋 사기", MarketView.BIG_MOVE),
+    LONG_STRANGLE("롱 스트랭글", "떨어진 가격 콜+풋 사기 (더 쌈)", MarketView.BIG_MOVE),
+    SHORT_PUT("숏 풋", "풋 팔기", MarketView.NOT_DOWN),
+    BULL_CALL_SPREAD("불 콜 스프레드", "콜 사고 더 높은 콜 팔기", MarketView.UP),
+    BEAR_PUT_SPREAD("베어 풋 스프레드", "풋 사고 더 낮은 풋 팔기", MarketView.DOWN),
+    BULL_PUT_CREDIT_SPREAD("불 풋 크레딧 스프레드", "풋 팔고 더 낮은 풋 사기", MarketView.NOT_DOWN),
+    BEAR_CALL_CREDIT_SPREAD("베어 콜 크레딧 스프레드", "콜 팔고 더 높은 콜 사기", MarketView.NOT_UP),
 }
 
 data class Strategy(
