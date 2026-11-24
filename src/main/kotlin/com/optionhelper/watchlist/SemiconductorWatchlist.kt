@@ -5,4 +5,7 @@ object SemiconductorWatchlist {
     val SYMBOLS = listOf("NVDA", "AMD", "AVGO", "TSM", "MU", "INTC", "QCOM", "ARM", "SMCI", "SOXX")
     val DEFAULT: String = SYMBOLS.first()
     const val BENCHMARK = "SOXX"
+
+    /** 실적발표가 있는 개별 종목(비교 기준 ETF 제외). */
+    val STOCKS: List<String> = SYMBOLS - BENCHMARK
 }

@@ -1,7 +1,9 @@
 package com.optionhelper.macro
 
+import com.optionhelper.pricing.MarketClock
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
 /** 시장 전체에 영향을 주는 미국 경제지표. 발표 시각은 미국 동부 기준. */
@@ -14,6 +16,9 @@ enum class MacroEventType(val label: String, val releaseTimeEt: LocalTime) {
 }
 
 data class MacroEvent(val type: MacroEventType, val date: LocalDate) {
+    /** 발표 시각(미국 동부). */
+    fun releaseAt(): ZonedDateTime = date.atTime(type.releaseTimeEt).atZone(MarketClock.NEW_YORK)
+
     /** 모든 지표가 장 마감(16:00 ET) 전에 나오므로, 만기 당일 발표까지 그 만기 가격에 반영된다. */
     fun reactsBy(expiry: LocalDate): Boolean = !date.isAfter(expiry)
 }

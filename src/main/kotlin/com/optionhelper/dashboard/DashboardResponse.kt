@@ -4,7 +4,6 @@ import com.optionhelper.earnings.EarningsEvent
 import com.optionhelper.earnings.EarningsMoveStats
 import com.optionhelper.option.IvPoint
 import com.optionhelper.pricing.OptionType
-import com.optionhelper.seasonality.MonthStats
 import com.optionhelper.signal.StrategySignal
 import com.optionhelper.strategy.Breakeven
 import com.optionhelper.strategy.OptionLeg
@@ -46,8 +45,6 @@ data class DashboardResponse(
     val strategies: List<StrategyView>,
     val earnings: EarningsView,
     val macro: MacroView,
-    val seasonality: List<MonthStats>,
-    val currentMonth: Int,
     val signals: List<StrategySignal>,
     val ivHistory: List<IvPoint>,
     val warnings: List<String>,

@@ -23,7 +23,7 @@ class DashboardApiTest {
     lateinit var objectMapper: ObjectMapper
 
     @Test
-    fun `대시보드 JSON - 스트래들, 예상 변동폭, 체인, 전략, 계절성`() {
+    fun `대시보드 JSON - 스트래들, 예상 변동폭, 체인, 전략`() {
         val body = mockMvc.get("/api/dashboard?symbol=nvda").andExpect { status { isOk() } }.andReturn().response.contentAsString
         val d = objectMapper.readTree(body)
 
@@ -35,7 +35,6 @@ class DashboardApiTest {
         assertThat(d["expectedMove"]["pct"].asDouble()).isCloseTo(straddle / d["spot"].asDouble(), within(1e-9))
         assertThat(d["chain"].size()).isGreaterThan(5)
         assertThat(d["strategies"].map { it["kind"].asText() }).contains("LONG_STRADDLE", "LONG_STRANGLE", "SHORT_PUT")
-        assertThat(d["seasonality"].size()).isEqualTo(12)
         assertThat(d["earnings"]["next"].isNull).isFalse()
         assertThat(d["macro"]["coversUntil"].asText()).isEqualTo("2027-12-22")
         // 전일 종가는 일봉 마지막 종가, 현재가 체결 시각도 같이 온다

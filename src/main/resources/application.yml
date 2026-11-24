@@ -25,6 +25,8 @@ optionhelper:
   earnings:
     # fake | alphavantage
     source: fake
+    # 관심 종목 실적 일정을 백그라운드로 주 1회 갱신
+    background-refresh: true
   pricing:
     risk-free-rate: 0.04
   recorder:

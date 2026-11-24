@@ -13,7 +13,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import java.time.Instant
 import java.time.LocalDate
 
-/** 실적 일정 캐시. Alpha Vantage 무료 한도(하루 25회) 때문에 DB에 두고 하루 한 번만 갱신한다. */
+/** 실적 일정 캐시. Alpha Vantage 무료 한도(하루 25회) 때문에 DB에 두고 일주일에 한 번 백그라운드로 갱신한다. */
 @Entity
 @Table(name = "earnings_event", indexes = [Index(name = "idx_earnings_symbol", columnList = "symbol")])
 class EarningsEventEntity(
