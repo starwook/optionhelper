@@ -162,6 +162,22 @@
 - [5] https://docs.alpaca.markets/docs/market-data-faq
 - [6] https://docs.alpaca.markets/docs/historical-option-data
 
+### 1-5. WebSocket 실시간 스트림 (2026-11-25, 전부 미확인 — 조사 대기)
+
+현재 코드는 WebSocket을 쓰지 않는다(브라우저 10초 폴링 → 서버 REST, 5초 캐시). 푸시로 바꿀 수 있는지 보려고 만든 절이며, **아래 값은 아직 어떤 근거로도 확인하지 않았다**(자료조사는 사용자가 GPT로 진행). 확인되면 날짜·확인 수준과 함께 채운다.
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 주식 스트림 URL | `wss://stream.data.alpaca.markets/v2/iex` (무료 예상) / `v2/sip` (유료 예상) | 미확인 |
+| 무료 플랜에서 주식 스트림 사용 가능 여부 | [확인 필요] | 미확인 |
+| 주식 구독 심볼 한도 | [확인 필요] | 미확인 |
+| 동시 연결 수 한도 | [확인 필요] | 미확인 |
+| 주식 메시지 종류 (trades / quotes / bars 등) | [확인 필요] | 미확인 |
+| 옵션 스트림 URL | `wss://stream.data.alpaca.markets/v1beta1/indicative` / `v1beta1/opra` | 미확인 |
+| 무료 플랜에서 옵션 스트림 사용 가능 여부, 심볼 한도 | [확인 필요] | 미확인 |
+| 인증 메시지 형식 | [확인 필요] | 미확인 |
+| 메시지 형식 (JSON / msgpack) | [확인 필요] | 미확인 |
+
 ---
 
 ## 2. Alpha Vantage (`earnings/AlphaVantage*`)
@@ -444,6 +460,20 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 - [L3] https://interactivebrokers.github.io/tws-api/basic_contracts.html
 - [L4] https://interactivebrokers.github.io/tws-api/historical_bars.html
 - [L5] https://interactivebrokers.github.io/tws-api/historical_limitations.html
+
+### 3-10-1. 실시간 푸시 구독과 줄 수 계산 (2026-11-25)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| `reqMktData`가 주식·옵션 모두 푸시하는가 | 이 문서 3-4(주식)·3-6(옵션)의 `reqMktData(..., snapshot=false)`는 구독형이라 값이 바뀔 때마다 `tickPrice`·`tickSize`·`tickOptionComputation` 콜백이 온다. `cancelMktData`로 해지할 때까지 유지. 주식·옵션 둘 다 같은 방식 | 공식 [21][25] (이 문서 3-4, 3-6) |
+| 줄 수 한도 | 기본 100줄, 계약 1개 구독 = 1줄. 넘으면 오류 101. 늘리려면 수수료·Quote Booster(데이터소스-조사: 100줄당 월 $30) | 공식 [18][28] (3-8) |
+| 체인 전체를 구독하면 | 체인 전체는 수백 줄이라 불가. 만기 1개 ATM ±10칸 = 콜·풋 42줄(데이터소스-조사 2026-11-20 계산) | 계산, 공식 [28] 기준 |
+| 종목당 필요 줄 | 주식 1줄 + 옵션 약 42줄(만기 1개, ATM ±10칸) ≈ 43줄 | 계산 |
+| 종목 수별 | 2종목 ≈ 86줄 → 100줄 이내. 3종목 ≈ 129줄 → 초과. 3~5종목을 동시에 보려면 ATM ±5칸(콜·풋 22줄+주식 1줄=23줄)으로 줄이면 4종목 92줄. 5종목은 옵션 칸수를 더 줄이거나 줄 추가 필요 | 계산 (정확한 최소 칸수는 실측) |
+| 요청 속도 | 초당 (줄 수÷2)건 → 기본 50건. 43줄 구독은 1초 안에 끝남 | 공식 [28] (3-8) |
+| 미확인 | 한 종목 옵션 줄 수에 기초자산 주식 줄이 포함돼 그릭 계산에 쓰이는지(주식 구독은 어차피 1줄), 호가창·실시간 봉과 줄 공유 여부는 구현 시 실측 | 미확인 |
+
+---
 
 ### 3-11. 구현 전에 실측으로 채울 것
 
