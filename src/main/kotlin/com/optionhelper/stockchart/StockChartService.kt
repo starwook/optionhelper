@@ -61,7 +61,10 @@ class StockChartService(
             session = MarketClock.previousTradingDay(session)
             bars = source.intradayBars(symbol, session)
         }
-        val previousClose = dailyBars.bars(symbol).lastOrNull { it.date < session }?.close
+        // 전일 종가 = 전 거래일 마지막 5분봉 종가(16:00 ET 가격). 없으면 일봉 종가
+        val previousClose =
+            source.intradayBars(symbol, MarketClock.previousTradingDay(session)).lastOrNull()?.close
+                ?: dailyBars.bars(symbol).lastOrNull { it.date < session }?.close
         val close = ZonedDateTime.of(session, MarketClock.closeOf(session), MarketClock.NEW_YORK).toInstant()
         val response = StockChartResponse(symbol, ChartRange.DAY, session, previousClose, close, bars.map { ChartPoint(it.time, it.close) })
         dayCache[symbol] = Cached(now, response)

@@ -532,7 +532,7 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 배포자(DEX)별 목록+상태 | `{"type":"metaAndAssetCtxs","dex":"xyz"}` → `[meta, ctxs]`. `meta.universe[i]`와 `ctxs[i]`가 같은 순서 | GPT [H3], 실측 |
 | `universe[i]` | `name`("xyz:NVDA"), `szDecimals`, `maxLeverage`, `isDelisted`(상장폐지면 true) | 실측 |
 | `ctxs[i]` | `markPx`, `oraclePx`, `midPx`(호가 없으면 null), `prevDayPx`(24시간 전 가격, 미국 전일 종가 아님), `dayNtlVlm`(24시간 거래대금, 산출 구간 정의는 문서에 없음), `funding`, `openInterest`, `premium`, `impactPxs`, `dayBaseVlm`. 값은 모두 **문자열** | 실측 |
-| 코드가 쓰는 것 | 웹소켓 값이 아직 없을 때 대신 `midPx`(없으면 `markPx`) | |
+| 코드가 쓰는 것 | 웹소켓 값이 아직 없거나 60초보다 오래됐을 때 대신 `markPx`(없으면 `midPx`) | |
 
 ### 5-2. 실시간 가격 — 웹소켓 `wss://api.hyperliquid.xyz/ws`
 
@@ -542,7 +542,11 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 구독 확인 | `{"channel":"subscriptionResponse","data":{...구독 메시지...}}` | 실측 |
 | 가격 메시지 | `{"channel":"allMids","data":{"mids":{"xyz:NVDA":"152.305", ...}}}`. xyz 전 종목(실측 149개)이 한 메시지에 온다. 값은 문자열 | 실측 |
 | 주기 | 실측 2026-11-24 14:37 ET에 약 12초 간격(정해진 주기는 문서에 없음) | 실측 |
+| 코드가 쓰는 것 | 종목별 `activeAssetCtx` 구독(11개), `ctx.markPx`를 현재가로(2026-11-25, 처음엔 `allMids`였으나 12초 간격이라 바꿈) | |
 | 공식 권장 | 공식 문서는 `allMids` 대신 `fastAssetCtxs`를 안내한다고 함. 형식 미확인이라 안 씀 | GPT, 미확인 |
+| 채널별 빈도(실측 2026-11-24 15:09 ET, 20초) | `allMids`(dex 전체) 2개(≈12초 간격), `l2Book` 2개, `trades` 13개, **`activeAssetCtx` 20개(≈1초)**, **`bbo` 164개(≈0.1초)**. 코인별 구독은 `{"type":"activeAssetCtx","coin":"xyz:NVDA"}`, `{"type":"bbo","coin":"xyz:NVDA"}` | 실측 |
+| `activeAssetCtx` 메시지 | `{"channel":"activeAssetCtx","data":{"coin":"xyz:NVDA","ctx":{markPx, midPx, oraclePx, prevDayPx, dayNtlVlm, funding, openInterest, premium, ...}}}`. Hyperliquid 화면의 Mark·Oracle·24h Change(= markPx 대비 prevDayPx)와 같은 값 | 실측 |
+| `bbo` 메시지 | `{"channel":"bbo","data":{"coin":"xyz:NVDA","time":ms,"bbo":[{px,sz,n}(매수1호가),{px,sz,n}(매도1호가)]}}` | 실측 |
 | 한도 | IP당 연결 10개, 분당 신규 연결 30개, 구독 1000개, 분당 메시지 2000개 | 공식 [H4] |
 | 끊김·핑 규칙 | 서버가 유휴 연결을 끊는 시간, ping 형식 | **미확인**. 코드는 끊기면 다시 연결한다 |
 
@@ -555,7 +559,7 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 개수 한도 | 요청당 최대 500개, 조회 가능한 최근 봉 최대 5000개 | GPT [H2] |
 | 과거 범위 | 상장일부터. 실측: `xyz:NVDA` 2025-11-12, `xyz:SNDK` 2026-01-12, `xyz:SKHY` 2026-07-09, `xyz:SOXL` 2026-08-06 | 실측 |
 | 5m 봉 | 같은 형식, 24시간 이어짐(정규장 밖도 있음) | 실측 |
-| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에 | |
+| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에. 전일 종가 = 전 거래일 마지막 5분봉(15:55 시작) 종가 = 16:00 ET 가격 | |
 
 - [H1] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
 - [H2] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint

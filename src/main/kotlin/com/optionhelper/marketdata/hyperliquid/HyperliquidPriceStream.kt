@@ -11,23 +11,24 @@ import java.util.concurrent.CompletionStage
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * 웹소켓 allMids 구독으로 배포자(xyz) 전 종목 중간가를 받아 메모리에 둔다. 서버 전체가 연결 1개만 쓴다(한도: IP당 10개).
- * 끊기면 [ensureConnected]가 다시 연결한다(주기 호출은 [HyperliquidPriceSource]가 한다).
+ * 웹소켓으로 종목별 `activeAssetCtx`를 구독해 마크 가격(Hyperliquid 화면의 Mark)을 메모리에 둔다. 약 1초마다 온다(실측).
+ * 서버 전체가 연결 1개만 쓴다(한도: IP당 연결 10개, 구독 1000개). 끊기면 [ensureConnected]가 다시 연결한다.
  */
-class HyperliquidMidStream(
+class HyperliquidPriceStream(
     private val properties: HyperliquidProperties,
+    private val coins: List<String>,
     private val objectMapper: ObjectMapper,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
-    data class Mid(val price: Double, val at: Instant)
+    data class Mark(val price: Double, val at: Instant)
 
-    private val mids = ConcurrentHashMap<String, Mid>()
+    private val marks = ConcurrentHashMap<String, Mark>()
 
     @Volatile private var socket: WebSocket? = null
 
-    fun mid(coin: String): Mid? = mids[coin]
+    fun mark(coin: String): Mark? = marks[coin]
 
     @Synchronized
     fun ensureConnected() {
@@ -49,7 +50,9 @@ class HyperliquidMidStream(
         private val buffer = StringBuilder()
 
         override fun onOpen(webSocket: WebSocket) {
-            webSocket.sendText("""{"method":"subscribe","subscription":{"type":"allMids","dex":"${properties.dex}"}}""", true)
+            coins.forEach { coin ->
+                webSocket.sendText("""{"method":"subscribe","subscription":{"type":"activeAssetCtx","coin":"$coin"}}""", true).join()
+            }
             webSocket.request(1)
         }
 
@@ -62,8 +65,8 @@ class HyperliquidMidStream(
             if (last) {
                 val text = buffer.toString()
                 buffer.setLength(0)
-                runCatching { HyperliquidParser.mids(objectMapper.readTree(text)) }
-                    .onSuccess { received -> received?.let { m -> m.forEach { (coin, px) -> mids[coin] = Mid(px, clock.instant()) } } }
+                runCatching { HyperliquidParser.assetCtxMark(objectMapper.readTree(text)) }
+                    .onSuccess { it?.let { (coin, px) -> marks[coin] = Mark(px, clock.instant()) } }
                     .onFailure { log.debug("Hyperliquid 메시지 해석 실패: {}", it.message) }
             }
             webSocket.request(1)
