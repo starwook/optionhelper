@@ -36,8 +36,6 @@ data class DashboardResponse(
     val spot: Double,
     // 현재가 체결 시각(장 밖이면 프리장·장후 체결)
     val spotAsOfKst: String,
-    // 오늘 시가. 개장 전이면 null
-    val open: Double?,
     val previousClose: Double?,
     val atm: AtmView?,
     val straddle: Double?,

@@ -35,7 +35,7 @@ class FakeMarketDataSource(private val clock: Clock) : MarketDataSource {
         // 시간에 따라 천천히 출렁이게
         val minutes = clock.instant().epochSecond / 60.0
         val price = base * (1 + 0.01 * sin(minutes / 30.0))
-        return StockQuote(symbol, round2(price), round2(base * 0.995), round2(base * 0.99), clock.instant())
+        return StockQuote(symbol, round2(price), round2(base * 0.99), clock.instant())
     }
 
     override fun expirations(

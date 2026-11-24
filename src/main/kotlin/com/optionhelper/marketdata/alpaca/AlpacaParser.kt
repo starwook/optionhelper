@@ -5,15 +5,13 @@ import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.OccSymbol
 import com.optionhelper.marketdata.StockQuote
 import com.optionhelper.option.OptionQuote
-import com.optionhelper.pricing.MarketClock
 import java.time.Instant
-import java.time.LocalDate
 import java.time.OffsetDateTime
 
 /**
  * Alpaca 응답 JSON → 도메인. 필드명은 docs/데이터소스-조사.md(공식 문서 확인)를 따른다.
  * - 옵션 스냅샷: snapshots{심볼: {latestQuote{bp, ap}, impliedVolatility, greeks{delta}}}, next_page_token
- * - 주식 스냅샷: latestTrade{p, t}, dailyBar{t, o}, prevDailyBar{c}
+ * - 주식 스냅샷: latestTrade{p, t}, prevDailyBar{c}
  * - 일봉: bars{심볼: [{t, o, h, l, c}]}, next_page_token
  */
 object AlpacaParser {
@@ -39,22 +37,14 @@ object AlpacaParser {
         return OptionPage(quotes, root.path("next_page_token").textOrNull())
     }
 
-    /** 개장 전엔 dailyBar가 직전 거래일 봉이라, 봉 날짜(ET)가 [today]가 아니면 시가를 비운다. */
     fun stockSnapshot(
         symbol: String,
         root: JsonNode,
-        today: LocalDate,
     ): StockQuote {
         val trade = root.path("latestTrade")
-        val dailyBar = root.path("dailyBar")
-        val dailyBarDate =
-            dailyBar.path(
-                "t",
-            ).textOrNull()?.let { OffsetDateTime.parse(it).atZoneSameInstant(MarketClock.NEW_YORK).toLocalDate() }
         return StockQuote(
             symbol = symbol,
             price = trade.path("p").asDouble(),
-            open = if (dailyBarDate == today) dailyBar.path("o").doubleOrNull() else null,
             previousClose = root.path("prevDailyBar").path("c").doubleOrNull(),
             asOf = trade.path("t").textOrNull()?.let { OffsetDateTime.parse(it).toInstant() } ?: Instant.now(),
         )
