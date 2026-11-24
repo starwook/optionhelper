@@ -52,11 +52,15 @@ class ReviewApiTest {
                     d.straddle,
                     d.volatility.atmIvCalc,
                     objectMapper.writeValueAsString(d.chain),
+                    source = d.feed.name,
                 ),
             )
+        // 다른 소스(예: 예전 실제 시세)가 남긴 스냅샷은 목록에도, 직접 조회에도 안 나온다
+        val other = repository.save(OptionSnapshot("NVDA", expiry, capturedAt, d.spot, null, null, null, "[]", source = "다른 소스"))
 
         val list = objectMapper.readTree(get("/api/review/snapshots?symbol=NVDA&date=${expiry.minusDays(1)}"))
-        assertThat(list.map { it["id"].asLong() }).contains(saved.id)
+        assertThat(list.map { it["id"].asLong() }).contains(saved.id).doesNotContain(other.id)
+        mockMvc.get("/api/review/snapshots/${other.id}").andExpect { status { isNotFound() } }
 
         val review = objectMapper.readTree(get("/api/review/snapshots/${saved.id}"))
         assertThat(review["strategies"].size()).isGreaterThan(3)

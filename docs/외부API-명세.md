@@ -15,6 +15,8 @@
 
 ## 1. Alpaca Market Data (`marketdata/alpaca`)
 
+> **2026-11-25: 코드에서 제거.** Alpaca 시세는 재배포 불가(데이터소스-조사 9절)라 공개 사이트로 바꾸면서 `marketdata/alpaca` 구현을 지웠다. 본인 로그인 시 실제 시세를 붙일 때(TODO) 이 절과 git 기록(커밋 `e2e30f0` 이전)을 근거로 다시 만든다.
+
 ### 공통
 
 | 항목 | 내용 | 확인 |
@@ -514,3 +516,48 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 | 4 | `AlpacaParser.bars` | 일봉 `t`를 `OffsetDateTime.parse(...).toLocalDate()`로 UTC 날짜로 쓴다. 일봉 `t`가 뉴욕 자정(04:00Z/05:00Z)이면 UTC 날짜와 뉴욕 날짜가 같아 문제없다. 다만 오프셋 규칙은 문서에 명시돼 있지 않음 | 현재 영향 없음으로 판단, 실측 필요 |
 | 5 | `AlphaVantageParser.errorMessage` | `Note`·`Error Message` 키는 이번 조사에서 확인 못 했고, 실측된 건 `Information`뿐이다. 세 키를 다 보는 지금 방식은 안전한 쪽 | 영향 없음 |
 | 6 | 이전 문서 3장 | "Gateway 실계좌 4001"은 공식 문서에서 확인되지 않았다(위 3-2). 또 과거 IV(`OPTION_IMPLIED_VOLATILITY`)는 옵션 계약이 아니라 **주식 계약**으로 요청해야 한다(3-7) | IBKR 구현 시 주의 |
+
+---
+
+## 5. Hyperliquid (`marketdata/hyperliquid`, 2026-11-25)
+
+공개 사이트의 기초자산 가격. 키·인증 없음. 옵션은 이 가격으로 우리가 계산한 근사값이다(`marketdata/model`).
+근거: GPT 답변(공식 문서 링크 제시)과 같은 날 실측. 공식 문서 [H1] [H2] [H3] [H4].
+
+### 5-1. 시장 목록·현재 상태 — `POST https://api.hyperliquid.xyz/info`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 전체 목록 | `{"type":"allPerpMetas"}` | 실측 |
+| 배포자(DEX)별 목록+상태 | `{"type":"metaAndAssetCtxs","dex":"xyz"}` → `[meta, ctxs]`. `meta.universe[i]`와 `ctxs[i]`가 같은 순서 | GPT [H3], 실측 |
+| `universe[i]` | `name`("xyz:NVDA"), `szDecimals`, `maxLeverage`, `isDelisted`(상장폐지면 true) | 실측 |
+| `ctxs[i]` | `markPx`, `oraclePx`, `midPx`(호가 없으면 null), `prevDayPx`(24시간 전 가격, 미국 전일 종가 아님), `dayNtlVlm`(24시간 거래대금, 산출 구간 정의는 문서에 없음), `funding`, `openInterest`, `premium`, `impactPxs`, `dayBaseVlm`. 값은 모두 **문자열** | 실측 |
+| 코드가 쓰는 것 | 웹소켓 값이 아직 없을 때 대신 `midPx`(없으면 `markPx`) | |
+
+### 5-2. 실시간 가격 — 웹소켓 `wss://api.hyperliquid.xyz/ws`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 구독 | `{"method":"subscribe","subscription":{"type":"allMids","dex":"xyz"}}`. `dex`를 빼면 첫 번째 perp DEX(HIP-3 아님)를 고른다 | GPT [H1], 실측 |
+| 구독 확인 | `{"channel":"subscriptionResponse","data":{...구독 메시지...}}` | 실측 |
+| 가격 메시지 | `{"channel":"allMids","data":{"mids":{"xyz:NVDA":"152.305", ...}}}`. xyz 전 종목(실측 149개)이 한 메시지에 온다. 값은 문자열 | 실측 |
+| 주기 | 실측 2026-11-24 14:37 ET에 약 12초 간격(정해진 주기는 문서에 없음) | 실측 |
+| 공식 권장 | 공식 문서는 `allMids` 대신 `fastAssetCtxs`를 안내한다고 함. 형식 미확인이라 안 씀 | GPT, 미확인 |
+| 한도 | IP당 연결 10개, 분당 신규 연결 30개, 구독 1000개, 분당 메시지 2000개 | 공식 [H4] |
+| 끊김·핑 규칙 | 서버가 유휴 연결을 끊는 시간, ping 형식 | **미확인**. 코드는 끊기면 다시 연결한다 |
+
+### 5-3. 봉 — `POST /info {"type":"candleSnapshot","req":{"coin":"xyz:NVDA","interval":"1d","startTime":ms,"endTime":ms}}`
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 응답 | 배열. `t`(시작 ms), `T`(끝 ms), `o/h/l/c`(문자열), `v`, `n`, `s`, `i` | GPT [H2], 실측 |
+| 1d 봉 경계 | **UTC 자정~자정**(뉴욕 정규장 마감이 아님). 주말에도 봉이 있다(NVDA 1년에 378개) | 실측 |
+| 개수 한도 | 요청당 최대 500개, 조회 가능한 최근 봉 최대 5000개 | GPT [H2] |
+| 과거 범위 | 상장일부터. 실측: `xyz:NVDA` 2025-11-12, `xyz:SNDK` 2026-01-12, `xyz:SKHY` 2026-07-09, `xyz:SOXL` 2026-08-06 | 실측 |
+| 5m 봉 | 같은 형식, 24시간 이어짐(정규장 밖도 있음) | 실측 |
+| 코드가 쓰는 것 | 일봉: 미국 거래일만 남겨 `DailyBar`로(종가 = UTC 자정 = 뉴욕 19~20시 가격). 5분봉: 정규장 시간만 남겨 차트에 | |
+
+- [H1] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/websocket/subscriptions
+- [H2] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
+- [H3] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals
+- [H4] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits

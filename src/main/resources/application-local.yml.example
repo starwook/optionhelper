@@ -5,11 +5,6 @@ spring:
     password: change-me
 
 optionhelper:
-  market-data:
-    source: alpaca
-    alpaca:
-      key-id: your-alpaca-key-id
-      secret-key: your-alpaca-secret-key
   earnings:
     source: alphavantage
     alpha-vantage:

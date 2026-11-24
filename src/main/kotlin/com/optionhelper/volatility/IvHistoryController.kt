@@ -1,6 +1,6 @@
 package com.optionhelper.volatility
 
-import com.optionhelper.watchlist.SemiconductorWatchlist
+import com.optionhelper.watchlist.WatchedSymbol
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -17,5 +17,5 @@ class IvHistoryController(private val ivHistoryService: IvHistoryService) {
 
     /** 관심 종목 전체의 지금 IV 위치 비교. */
     @GetMapping("/summary")
-    fun summary() = ivHistoryService.summary(SemiconductorWatchlist.SYMBOLS)
+    fun summary() = ivHistoryService.summary(WatchedSymbol.SYMBOLS)
 }

@@ -78,13 +78,13 @@ class ReviewService(
     ): List<SnapshotSummary> {
         val from = date.atStartOfDay(MarketClock.NEW_YORK).toInstant()
         val to = date.plusDays(1).atStartOfDay(MarketClock.NEW_YORK).toInstant()
-        return repository.findBySymbolAndCapturedAtGreaterThanEqualOrderByCapturedAt(symbol.uppercase(), from)
+        return repository.findBySourceAndSymbolAndCapturedAtGreaterThanEqualOrderByCapturedAt(source.feed.name, symbol.uppercase(), from)
             .filter { it.capturedAt.isBefore(to) }
             .map { SnapshotSummary(it.id!!, format(it, MarketClock.NEW_YORK), it.expiry, it.spot, it.straddle, it.atmIv) }
     }
 
     fun review(id: Long): ReviewResponse {
-        val snapshot = repository.findById(id).orElseThrow { SnapshotNotFoundException(id) }
+        val snapshot = repository.findById(id).filter { it.source == source.feed.name }.orElseThrow { SnapshotNotFoundException(id) }
         val rows: List<ChainRow> = objectMapper.readValue(snapshot.chainJson, jacksonTypeRef<List<ChainRow>>())
         val chain = OptionChain(snapshot.symbol, snapshot.expiry, rows.flatMap { toQuotes(it) })
         val atm = snapshot.atmStrike ?: chain.atmStrike(snapshot.spot)
