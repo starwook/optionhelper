@@ -42,11 +42,27 @@ class AlpacaParserTest {
 
     @Test
     fun `주식 스냅샷 - 현재가, 시가, 전일 종가`() {
-        val json = """{"latestTrade": {"p": 158.13, "t": "2026-11-20T15:30:00Z"}, "dailyBar": {"o": 150.0}, "prevDailyBar": {"c": 151.0}}"""
-        val quote = AlpacaParser.stockSnapshot("NVDA", mapper.readTree(json))
+        val json =
+            """
+            {"latestTrade": {"p": 158.13, "t": "2026-11-20T15:30:00Z"},
+             "dailyBar": {"t": "2026-11-20T05:00:00Z", "o": 150.0}, "prevDailyBar": {"c": 151.0}}
+            """.trimIndent()
+        val quote = AlpacaParser.stockSnapshot("NVDA", mapper.readTree(json), LocalDate.of(2026, 11, 20))
         assertThat(quote.price).isEqualTo(158.13)
         assertThat(quote.open).isEqualTo(150.0)
         assertThat(quote.previousClose).isEqualTo(151.0)
+    }
+
+    @Test
+    fun `개장 전 - dailyBar가 어제 봉이면 시가 없음`() {
+        val json =
+            """
+            {"latestTrade": {"p": 157.07, "t": "2026-11-24T13:10:00Z"},
+             "dailyBar": {"t": "2026-11-23T05:00:00Z", "o": 167.03}, "prevDailyBar": {"c": 160.0}}
+            """.trimIndent()
+        val quote = AlpacaParser.stockSnapshot("NVDA", mapper.readTree(json), LocalDate.of(2026, 11, 24))
+        assertThat(quote.price).isEqualTo(157.07)
+        assertThat(quote.open).isNull()
     }
 
     @Test

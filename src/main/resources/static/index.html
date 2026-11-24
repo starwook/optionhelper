@@ -296,10 +296,15 @@ function renderToday(d) {
   $('range').innerHTML = m ? rangeBar(d) : '';
 
   const straddle = d.strategies.find((s) => s.kind === 'LONG_STRADDLE');
+  const fromClose = d.previousClose ? d.spot / d.previousClose - 1 : null;
   const fromOpen = d.open ? d.spot / d.open - 1 : null;
   const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
+  // 장 밖이면 현재가는 프리장·장후 체결가라 체결 시각을 같이 보여 준다
+  const spotLabel = d.marketOpen ? '현재가' : `현재가 <span class="feed-warn">(장 밖 체결 ${esc(hm(d.spotAsOfKst))})</span>`;
+  const spotSub = `전일 종가 대비 <span class="${tone(fromClose)}">${signed(fromClose, 2)}</span>`
+    + (fromOpen == null ? '' : ` · 시가 대비 <span class="${tone(fromOpen)}">${signed(fromOpen, 2)}</span>`);
   $('facts').innerHTML = [
-    fact('현재가', '$' + n2(d.spot), `시가 대비 <span class="${tone(fromOpen)}">${signed(fromOpen, 2)}</span>`),
+    fact(spotLabel, '$' + n2(d.spot), spotSub),
     fact('스트래들 1세트', d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
     fact('본전 (수수료 포함)', straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
     fact('만기까지', d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈'),

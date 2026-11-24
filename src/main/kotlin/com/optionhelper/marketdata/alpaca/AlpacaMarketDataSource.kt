@@ -53,6 +53,7 @@ class AlpacaMarketDataSource(
             get {
                 it.path("/v2/stocks/$symbol/snapshot").queryParam("feed", properties.stockFeed).build()
             },
+            clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate(),
         )
 
     override fun expirations(

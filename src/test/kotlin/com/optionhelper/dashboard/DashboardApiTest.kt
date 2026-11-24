@@ -38,6 +38,9 @@ class DashboardApiTest {
         assertThat(d["seasonality"].size()).isEqualTo(12)
         assertThat(d["earnings"]["next"].isNull).isFalse()
         assertThat(d["macro"]["coversUntil"].asText()).isEqualTo("2027-12-22")
+        // 전일 종가는 일봉 마지막 종가, 현재가 체결 시각도 같이 온다
+        assertThat(d["previousClose"].isNumber).isTrue()
+        assertThat(d["spotAsOfKst"].asText()).endsWith("KST")
     }
 
     @Test

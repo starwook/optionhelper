@@ -58,7 +58,9 @@
 | `latestQuote` | `t`, `bp`/`bs`/`bx` 매수 호가·수량·거래소, `ap`/`as`/`ax` 매도 호가·수량·거래소(`ap`=0이면 매도 호가 없음), `c`, `z` |
 | `minuteBar`, `dailyBar`, `prevDailyBar` | `t`, `o`, `h`, `l`, `c`, `v` 거래량, `n` 체결 건수, `vw` VWAP |
 
-**코드가 쓰는 것**: `feed=iex`(설정값), `latestTrade.p`, `latestTrade.t`, `dailyBar.o`, `prevDailyBar.c`.
+**코드가 쓰는 것**: `feed=iex`(설정값), `latestTrade.p`, `latestTrade.t`, `dailyBar.t`, `dailyBar.o`, `prevDailyBar.c`.
+- 시가: `dailyBar.t`의 ET 날짜가 오늘일 때만 `dailyBar.o`를 쓴다. 개장 전엔 `dailyBar`가 직전 거래일 봉이라 시가로 쓰면 어제 시가가 된다(2026-11-24 화면 실측: 프리장 157.07이 "시가 대비 −5.96%"로 나옴, 어제 시가 ≈167.03).
+- 전일 종가: 대시보드는 `prevDailyBar.c` 대신 SIP 일봉(`/v2/stocks/bars`, `end`=어제)의 오늘 전 마지막 종가를 우선 쓴다(개장 전 `prevDailyBar`가 하루 밀릴 수 있어서). 일봉이 없을 때만 `prevDailyBar.c`.
 
 **실측** (2026-11-24, 무료 키): `feed=iex` → HTTP 200, `latestTrade.p`/`t`, `dailyBar.o`, `prevDailyBar.c` 모두 옴.
 
