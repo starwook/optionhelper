@@ -35,9 +35,9 @@ class HyperliquidPriceSource(
     private val clock: Clock,
     restClientBuilder: RestClient.Builder,
 ) : UnderlyingPriceSource {
-    override val name = "Hyperliquid ${properties.dex} 선물"
+    override val name = "해외 가상자산 거래소"
     override val note =
-        "주가는 Hyperliquid의 주식 추종 선물(${properties.dex}) 마크 가격이라 실제 주가와 조금 다를 수 있고, " +
+        "주가는 이 거래소의 주식 추종 무기한 선물 참고시세로, 실제 주가·호가가 아니며 실제 주가와 다를 수 있습니다. " +
             "전일 종가는 전 거래일 정규장 마감(16:00 ET) 시점의 선물 가격입니다."
 
     private val client = restClientBuilder.baseUrl(properties.infoUrl).build()
@@ -98,7 +98,7 @@ class HyperliquidPriceSource(
 
     private fun restMark(coin: String): Double =
         HyperliquidParser.assetMarks(post(mapOf("type" to "metaAndAssetCtxs", "dex" to properties.dex)))[coin]
-            ?: throw IllegalStateException("Hyperliquid에 $coin 가격이 없습니다")
+            ?: throw IllegalStateException("참고시세에 $coin 가격이 없습니다")
 
     /** 요청당 최대 500개라 앞에서부터 이어 받는다. */
     private fun candles(
