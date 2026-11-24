@@ -9,6 +9,7 @@ import com.optionhelper.pricing.MarketClock
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import kotlin.math.abs
@@ -61,11 +62,26 @@ class FakeMarketDataSource(private val clock: Clock) : UnderlyingPriceSource {
     ): List<IntradayBar> {
         val open = ZonedDateTime.of(date, MarketClock.OPEN, MarketClock.NEW_YORK).toInstant()
         val close = minOf(ZonedDateTime.of(date, MarketClock.closeOf(date), MarketClock.NEW_YORK).toInstant(), clock.instant())
-        val base = basePrice(symbol)
-        return generateSequence(open) { it.plusSeconds(300) }
-            .takeWhile { it.isBefore(close) }
-            .map { IntradayBar(it, round2(base * (1 + 0.01 * sin(it.epochSecond / 60.0 / 30.0)))) }
-            .toList()
+        return minuteBars(symbol, 5, open, close)
+    }
+
+    /** 현재가와 같은 식으로 출렁이는 N분봉. 24시간 이어진다(실제 선물처럼). */
+    override fun minuteBars(
+        symbol: String,
+        minutes: Int,
+        from: Instant,
+        to: Instant,
+    ): List<IntradayBar> {
+        val step = minutes * 60L
+        val price = { t: Instant -> round2(basePrice(symbol) * (1 + 0.01 * sin(t.epochSecond / 60.0 / 30.0))) }
+        val first = Instant.ofEpochSecond((from.epochSecond + step - 1) / step * step)
+        return generateSequence(first) { it.plusSeconds(step) }
+            .takeWhile { it.isBefore(to) }
+            .map {
+                val open = price(it)
+                val close = price(it.plusSeconds(step))
+                IntradayBar(it, open, maxOf(open, close), minOf(open, close), close)
+            }.toList()
     }
 
     private fun basePrice(symbol: String) = 50.0 + abs(symbol.hashCode() % 250)

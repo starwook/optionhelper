@@ -7,6 +7,7 @@ import com.optionhelper.pricing.TheoreticalChain
 import com.optionhelper.watchlist.WatchedSymbol
 import org.springframework.stereotype.Component
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.util.concurrent.ConcurrentHashMap
@@ -48,6 +49,13 @@ class ModeledMarketDataSource(
         symbol: String,
         date: LocalDate,
     ) = underlying.intradayBars(symbol, date)
+
+    override fun minuteBars(
+        symbol: String,
+        minutes: Int,
+        from: Instant,
+        to: Instant,
+    ) = underlying.minuteBars(symbol, minutes, from, to)
 
     /** 날마다 그날까지의 일봉으로 정한 이론가 ATM IV(화면 옵션과 같은 식). IV Rank·퍼센타일은 사실상 HV의 위치가 된다. */
     override fun dailyImpliedVolatility(

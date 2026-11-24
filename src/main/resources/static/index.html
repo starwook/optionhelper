@@ -34,11 +34,17 @@
   .quote-chg { font-size: 17px; font-weight: 700; }
   .quote-ext { font-size: 15px; font-weight: 400; color: var(--muted); }
   .ranges, .pages { display: flex; gap: 4px; }
+  .ranges { flex-wrap: wrap; }
   .ranges button, .pages button { background: none; border: 1px solid transparent; border-radius: 8px; padding: 3px 10px; color: var(--muted); cursor: pointer; font-size: 14px; }
   .ranges button[aria-pressed="true"], .pages button[aria-pressed="true"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
   .pages button { padding: 5px 14px; font-size: 15px; }
-  .quote-chart { min-height: 170px; }
-  .quote-chart svg text { font-size: 12px; fill: var(--muted); }
+  .ranges .sep { width: 1px; margin: 4px 6px; background: var(--line); }
+  /* 봉 차트: 그림은 Lightweight Charts가 #qChart 안에 그린다. 범례(시·고·저·종)와 안내 문구는 그 위에 겹친다 */
+  .quote-chart { position: relative; height: 380px; margin-top: 8px; }
+  #qChart { height: 100%; }
+  .quote-legend { position: absolute; top: 4px; left: 8px; z-index: 3; font-size: 13px; color: var(--muted); pointer-events: none; }
+  .quote-legend b { color: var(--text); font-weight: 600; margin-right: 8px; }
+  .chart-msg { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--bg); }
   .quote-note { margin: 0; font-size: 12px; color: var(--faint); }
 
   /* ── 탭 ── */
@@ -172,12 +178,23 @@
     <span class="quote-chg" id="qChg"></span>
     <span class="grow"></span>
     <div class="ranges" id="ranges">
-      <button data-range="DAY" aria-pressed="true">1일</button>
-      <button data-range="THREE_MONTHS" aria-pressed="false">3개월</button>
-      <button data-range="YEAR" aria-pressed="false">1년</button>
+      <button data-interval="MIN_1">1분</button>
+      <button data-interval="MIN_5" aria-pressed="true">5분</button>
+      <button data-interval="MIN_15">15분</button>
+      <button data-interval="MIN_30">30분</button>
+      <button data-interval="MIN_60">60분</button>
+      <span class="sep"></span>
+      <button data-interval="DAY">일</button>
+      <button data-interval="WEEK">주</button>
+      <button data-interval="MONTH">월</button>
+      <button data-interval="YEAR">년</button>
     </div>
   </div>
-  <div class="quote-chart" id="qChart"></div>
+  <div class="quote-chart">
+    <div id="qChart"></div>
+    <div class="quote-legend" id="qLegend"></div>
+    <div class="empty chart-msg" id="qChartMsg">차트 불러오는 중…</div>
+  </div>
   <p class="quote-note" id="qNote"></p>
 </section>
 <nav class="tabs ticker-only" role="tablist">
@@ -266,14 +283,16 @@
 
 <footer id="footer"></footer>
 
+<!-- 봉 차트 라이브러리(TradingView Lightweight Charts, Apache-2.0. 라이선스상 차트 안 TradingView 로고는 그대로 둔다) -->
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
 <script src="/glossary.js"></script>
 <script>
 // ── 상태 ──
 const POLL_MS = 10000;
-const CHART_POLL_MS = 60000; // 5분봉이라 1분마다면 충분. 선 끝은 10초마다 현재가로 이어 붙인다
+const CHART_POLL_MS = 60000; // 봉은 1분마다 다시 받고, 마지막 봉은 그사이 실시간 현재가로 이어 그린다
 const SCHEDULE_POLL_MS = 300000; // 일정은 거의 안 바뀌어 5분마다
 const TABS = ['today', 'strategy', 'chain'];
-const state = { page: 'ticker', schedule: null, calMonth: null, footer: {}, symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null, range: 'DAY', chart: null, live: null };
+const state = { page: 'ticker', schedule: null, calMonth: null, footer: {}, symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null, interval: 'MIN_5', chart: null, live: null };
 let quoteSource = null;
 
 /** 맨 위 현재가만 서버가 밀어 준다(SSE, 약 1초). 나머지 화면은 10초마다 다시 받는다. */
@@ -321,16 +340,16 @@ async function load() {
 
 /** 상단 주가 차트. 대시보드와 따로 받아서, 느리거나 실패해도 대시보드는 그대로 뜬다. */
 async function loadChart() {
-  const range = state.range;
-  const q = new URLSearchParams({ symbol: state.symbol, range });
+  const interval = state.interval;
+  const q = new URLSearchParams({ symbol: state.symbol, interval });
   try {
     const res = await fetch('/api/stock-chart?' + q);
     const c = await res.json();
     if (!res.ok) throw new Error(c.error || '서버 오류 ' + res.status);
-    if (range !== state.range) return; // 그새 기간을 바꿨으면 버린다
+    if (interval !== state.interval) return; // 그새 봉 단위를 바꿨으면 버린다
     state.chart = c;
   } catch (e) {
-    if (range !== state.range) return;
+    if (interval !== state.interval) return;
     state.chart = { error: e.message };
   }
   renderQuote();
@@ -390,62 +409,137 @@ function renderQuote() {
   $('qChg').innerHTML = extended
     ? `<span class="quote-ext">정규장 $${n2(last.close)}로 마감 ${move(last.close, last.previousClose)} · ${SESSION_LABEL[phase]} ${move(spot, last.close)}</span>`
     : move(spot, prev);
-  if (!c || c.error || c.symbol !== d.symbol) {
-    $('qChart').innerHTML = `<div class="empty">${esc(c?.error || '차트 불러오는 중…')}</div>`;
-    $('qNote').textContent = '';
-    return;
-  }
-  const points = c.points.map((p) => [new Date(p.time).getTime(), p.price]);
-  // 장중이면 선 끝을 실시간 현재가로 이어 붙인다(차트는 1분, 현재가는 약 1초마다 갱신)
-  const today = spotTime.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  if (d.marketOpen && (c.range !== 'DAY' || c.sessionDate === today)) points.push([spotTime.getTime(), spot]);
-  if (points.length < 2) { $('qChart').innerHTML = '<div class="empty">차트 데이터가 없습니다.</div>'; $('qNote').textContent = ''; return; }
+  if (!c || c.error || c.symbol !== d.symbol) return chartMessage(c?.error || '차트 불러오는 중…');
+  if (!c.candles.length) return chartMessage('차트 데이터가 없습니다.');
+  const sc = drawChart(c);
+  if (!sc) return chartMessage('차트 라이브러리를 불러오지 못했습니다(인터넷 연결 확인).');
+  // 장중이면 마지막 봉을 실시간 현재가로 이어 그린다(봉은 1분, 현재가는 약 1초마다 갱신)
+  if (d.marketOpen && c.live) liveCandle(sc, c, spot, spotTime);
   const m = d.expectedMove;
-  const day = c.range === 'DAY';
-  $('qChart').innerHTML = priceChart(points, {
-    base: day ? c.previousClose : null,
-    // 1일은 x축을 장 마감까지 잡아, 장중엔 선이 하루 중 어디까지 왔는지 보이게
-    xEnd: day && c.sessionClose ? new Date(c.sessionClose).getTime() : null,
-    band: m ? [spot - m.dollars, spot + m.dollars] : null,
-    timeLabel: day
-      ? (t) => new Date(t).toLocaleTimeString('ko-KR', { timeZone: 'America/New_York', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET'
-      : (t) => new Date(t).toLocaleDateString('ko-KR', { timeZone: 'America/New_York', year: '2-digit', month: 'numeric', day: 'numeric' }),
-  });
-  const session = day
-    ? `${md(c.sessionDate)}(${weekday(c.sessionDate)}) 정규장 5분봉${c.sessionDate === today ? '' : ' (오늘 장 열리기 전이라 직전 거래일)'}`
-    : `최근 ${c.range === 'YEAR' ? '1년' : '3개월'} 일봉 종가`;
+  setLine('prev', c.previousClose, { color: COLOR.faint, title: '전일' });
+  setLine('bandHi', m ? spot + m.dollars : null, { color: COLOR.muted, title: '예상 상단' });
+  setLine('bandLo', m ? spot - m.dollars : null, { color: COLOR.muted, title: '예상 하단' });
+  const label = c.candles.length && INTERVAL_LABEL[c.interval];
   $('qNote').textContent = [
-    session,
-    day && c.previousClose ? `점선 = 전일 종가 ${n2(c.previousClose)}` : null,
+    c.intraday ? `${label}봉, 정규장(09:30–16:00 ET)만 · 시각은 미국 동부` : `${label}봉 · ${chartDate(c.candles[0].time)}부터(데이터 소스 상장 이후)`,
+    c.previousClose ? `점선 = 전일 종가 ${n2(c.previousClose)}` : null,
     extended ? '장 밖 등락은 24시간 거래되는 선물 가격 기준(실제 프리·애프터마켓 체결가 아님)' : null,
-    m ? `회색 띠 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(spot - m.dollars)} ~ ${n2(spot + m.dollars)}` : null,
+    m ? `예상 상단·하단 = 이번 만기(${md(d.expiry)})까지 시장 예상 범위 ${n2(spot - m.dollars)} ~ ${n2(spot + m.dollars)}` : null,
+    '휠·드래그로 확대·이동',
   ].filter(Boolean).join(' · ');
 }
 
-/** 주가 선 + 기준선(전일 종가, 점선) + 예상 범위(가로 띠) + 현재가 점. 오른쪽 여백에 가격 라벨. */
-function priceChart(points, { base, band, xEnd, timeLabel }) {
-  const w = Math.max(320, $('qChart').clientWidth || 720), h = 170, padR = 84, padB = 20, top = 10;
-  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
-  const all = ys.concat(base ?? [], band ?? []);
-  let y0 = Math.min(...all), y1 = Math.max(...all);
-  const pad = (y1 - y0) * 0.06 || 1;
-  y0 -= pad; y1 += pad;
-  const x0 = xs[0], x1 = Math.max(xs[xs.length - 1], xEnd ?? 0);
-  const X = (x) => 4 + ((x - x0) / (x1 - x0 || 1)) * (w - padR - 4);
-  const Y = (y) => top + (1 - (y - y0) / (y1 - y0)) * (h - top - padB);
-  const last = points[points.length - 1];
-  const color = last[1] >= (base ?? points[0][1]) ? 'var(--up)' : 'var(--down)';
-  const path = points.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
-  const label = (y, text, fill = 'var(--muted)') => `<text x="${w - padR + 6}" y="${Y(y) + 4}" style="fill:${fill}">${text}</text>`;
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="주가 차트">
-    ${band ? `<rect x="4" y="${Y(band[1])}" width="${w - padR - 4}" height="${Y(band[0]) - Y(band[1])}" fill="rgba(238,241,246,.07)"/>${label(band[1], n2(band[1]))}${label(band[0], n2(band[0]))}` : ''}
-    ${base != null ? `<line x1="4" x2="${w - padR}" y1="${Y(base)}" y2="${Y(base)}" stroke="var(--faint)" stroke-dasharray="4 4"/>${label(base, '전일 ' + n2(base), 'var(--faint)')}` : ''}
-    <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
-    <circle cx="${X(last[0])}" cy="${Y(last[1])}" r="4" fill="${color}"/>
-    ${label(last[1], n2(last[1]), 'var(--text)')}
-    <text x="4" y="${h - 4}">${timeLabel(x0)}</text>
-    <text x="${w - padR}" y="${h - 4}" text-anchor="end">${timeLabel(x1)}</text>
-  </svg>`;
+// ── 봉 차트(Lightweight Charts) ──
+// 분봉 time = 봉 시작 시각(epoch 초, 뉴욕 시간으로 표시), 일·주·월·년봉 time = 기간 첫날 UTC 자정(UTC 날짜로 표시)
+const INTERVAL_LABEL = { MIN_1: '1분', MIN_5: '5분', MIN_15: '15분', MIN_30: '30분', MIN_60: '60분', DAY: '일', WEEK: '주', MONTH: '월', YEAR: '년' };
+const INTERVAL_SEC = { MIN_1: 60, MIN_5: 300, MIN_15: 900, MIN_30: 1800, MIN_60: 3600 };
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const COLOR = { up: css('--up'), down: css('--down'), line: css('--line'), muted: css('--muted'), faint: css('--faint'), text: css('--text') };
+const stockChart = { chart: null, series: null, data: null, last: null, lines: {} };
+
+function chartMessage(text) {
+  $('qChartMsg').hidden = false;
+  $('qChartMsg').textContent = text;
+  $('qLegend').innerHTML = '';
+  $('qNote').textContent = '';
+}
+
+/** 날짜·시각 표시. type은 눈금 종류(0 년, 1 월, 2 일, 3 이상 시각), 없으면 십자선 라벨. */
+function chartTime(t, type) {
+  const intraday = state.chart?.intraday;
+  const parts = type === 0 ? { year: 'numeric' }
+    : type === 1 ? { year: '2-digit', month: 'short' }
+    : type === 2 ? { month: 'numeric', day: 'numeric' }
+    : type >= 3 ? { hour: '2-digit', minute: '2-digit' }
+    : intraday ? { month: 'numeric', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit' }
+    : { year: 'numeric', month: 'numeric', day: 'numeric' };
+  return new Date(t * 1000).toLocaleString('ko-KR', { timeZone: intraday ? 'America/New_York' : 'UTC', hourCycle: 'h23', ...parts });
+}
+const chartDate = (t) => new Date(t * 1000).toLocaleDateString('ko-KR', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+
+/** 차트를 한 번 만들고, 봉 데이터가 바뀌었을 때만 다시 넣는다. 라이브러리가 없으면 null. */
+function drawChart(c) {
+  if (!window.LightweightCharts) return null;
+  const sc = stockChart;
+  if (!sc.chart) {
+    // 크기는 직접 맞춘다(autoSize는 처음 크기가 0이라 첫 화면 범위가 틀어진다). 숨겨져 있다 보이면 범위도 다시 잡는다
+    const el = $('qChart');
+    new ResizeObserver(() => {
+      const wasHidden = !sc.chart.timeScale().width();
+      sc.chart.resize(el.clientWidth, el.clientHeight);
+      if (wasHidden && el.clientWidth) fitView();
+    }).observe(el);
+    sc.chart = LightweightCharts.createChart(el, {
+      width: el.clientWidth,
+      height: el.clientHeight,
+      layout: { background: { color: 'transparent' }, textColor: COLOR.muted, fontSize: 12 },
+      grid: { vertLines: { color: COLOR.line }, horzLines: { color: COLOR.line } },
+      rightPriceScale: { borderColor: COLOR.line },
+      timeScale: { borderColor: COLOR.line, rightOffset: 4, tickMarkFormatter: (t, type) => chartTime(t, type) },
+      localization: { locale: 'ko-KR', timeFormatter: (t) => chartTime(t) },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    });
+    sc.series = sc.chart.addCandlestickSeries({
+      upColor: COLOR.up, downColor: COLOR.down, wickUpColor: COLOR.up, wickDownColor: COLOR.down, borderVisible: false,
+    });
+    sc.chart.subscribeCrosshairMove((p) => showLegend(p.seriesData?.get(sc.series)));
+  }
+  if (sc.data !== c) {
+    const changed = sc.data?.symbol !== c.symbol || sc.data?.interval !== c.interval;
+    sc.data = c;
+    sc.series.setData(c.candles);
+    sc.last = { ...c.candles[c.candles.length - 1] };
+    if (changed) {
+      sc.chart.applyOptions({ timeScale: { timeVisible: c.intraday } }); // 분봉만 눈금에 시각
+      fitView();
+    }
+  }
+  $('qChartMsg').hidden = true;
+  showLegend();
+  return sc;
+}
+
+/** 최근 150개 봉이 보이게(적으면 전부). 종목·봉 단위를 바꿨을 때. */
+function fitView() {
+  const n = stockChart.data?.candles.length ?? 0, ts = stockChart.chart.timeScale();
+  if (n > 150) ts.setVisibleLogicalRange({ from: n - 150, to: n + 4 });
+  else ts.fitContent();
+}
+
+/** 현재가로 마지막 봉을 고치거나, 분봉 시간이 넘어갔으면 새 봉을 연다. 60분봉은 09:30에 맞춰 :30에 자른다. */
+function liveCandle(sc, c, spot, at) {
+  const t = Math.floor(at.getTime() / 1000);
+  let time = sc.last.time;
+  if (c.intraday) {
+    const step = INTERVAL_SEC[c.interval], offset = 1800 % step;
+    time = Math.floor((t - offset) / step) * step + offset;
+    if (time < sc.last.time) return;
+  }
+  sc.last = time === sc.last.time
+    ? { ...sc.last, high: Math.max(sc.last.high, spot), low: Math.min(sc.last.low, spot), close: spot }
+    : { time, open: spot, high: spot, low: spot, close: spot };
+  sc.series.update(sc.last);
+  showLegend();
+}
+
+/** 왼쪽 위 범례: 십자선이 가리키는 봉(없으면 마지막 봉)의 시·고·저·종과 전 봉 대비 등락. */
+function showLegend(bar) {
+  const sc = stockChart;
+  const b = bar || sc.last;
+  if (!b) return;
+  const candles = sc.data.candles;
+  const i = candles.findIndex((x) => x.time === b.time);
+  const prev = (i > 0 ? candles[i - 1] : i === -1 ? candles[candles.length - 1] : null)?.close;
+  $('qLegend').innerHTML = `${chartTime(b.time)} &nbsp;시 <b>${n2(b.open)}</b>고 <b>${n2(b.high)}</b>저 <b>${n2(b.low)}</b>종 <b>${n2(b.close)}</b>${prev ? move(b.close, prev) : ''}`;
+}
+
+/** 가로 기준선(점선). price가 없으면 지운다. */
+function setLine(key, price, { color, title }) {
+  const sc = stockChart, line = sc.lines[key];
+  if (price == null) { if (line) sc.series.removePriceLine(line); delete sc.lines[key]; return; }
+  const opts = { price, color, title, lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true };
+  if (line) line.applyOptions(opts);
+  else sc.lines[key] = sc.series.createPriceLine(opts);
 }
 
 /** 만기 목록을 가로 한 줄로. 달이 바뀌는 곳에 "12월" 같은 표시를 넣는다. */
@@ -807,9 +901,9 @@ async function init() {
     load(); loadChart(); openQuoteStream();
   });
   $('ranges').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-range]');
-    if (!b || b.dataset.range === state.range) return;
-    state.range = b.dataset.range;
+    const b = e.target.closest('button[data-interval]');
+    if (!b || b.dataset.interval === state.interval) return;
+    state.interval = b.dataset.interval;
     state.chart = null;
     $('ranges').querySelectorAll('button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
     renderQuote();

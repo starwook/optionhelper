@@ -25,18 +25,21 @@ class StockChartApiTest {
         objectMapper.readTree(mockMvc.get("/api/stock-chart?$query").andExpect { status { isOk() } }.andReturn().response.contentAsString)
 
     @Test
-    fun `1일 - 마지막 정규장 5분봉과 전일 종가`() {
-        val d = chart("symbol=nvda&range=DAY")
+    fun `5분봉 - 정규장 봉과 전일 종가`() {
+        val d = chart("symbol=nvda&interval=MIN_5")
         assertThat(d["symbol"].asText()).isEqualTo("NVDA")
-        assertThat(d["sessionDate"].isNull).isFalse()
+        assertThat(d["intraday"].asBoolean()).isTrue()
         assertThat(d["previousClose"].isNumber).isTrue()
-        assertThat(d["points"].size()).isGreaterThan(0)
+        val c = d["candles"][0]
+        assertThat(c["high"].asDouble()).isGreaterThanOrEqualTo(c["low"].asDouble())
     }
 
     @Test
-    fun `1년 - 일봉 종가 252개`() {
-        val d = chart("symbol=NVDA&range=YEAR")
-        assertThat(d["points"].size()).isEqualTo(252)
+    fun `월봉 - 일봉을 달마다 묶는다`() {
+        val d = chart("symbol=NVDA&interval=MONTH")
+        assertThat(d["intraday"].asBoolean()).isFalse()
         assertThat(d["previousClose"].isNull).isTrue()
+        // 가짜 일봉은 12년치라 월봉은 140개 넘게
+        assertThat(d["candles"].size()).isGreaterThan(140)
     }
 }

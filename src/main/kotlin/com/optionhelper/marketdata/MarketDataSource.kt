@@ -40,6 +40,14 @@ interface MarketDataSource {
         date: LocalDate,
     ): List<IntradayBar>
 
+    /** 시작 시각이 [from, to)인 N분봉(정규장 밖 포함), 오래된 순. minutes는 1·5·15·30. 상단 주가 차트 분봉에 쓴다. */
+    fun minuteBars(
+        symbol: String,
+        minutes: Int,
+        from: Instant,
+        to: Instant,
+    ): List<IntradayBar>
+
     /** [dailyImpliedVolatility]가 무엇을 잰 값인지. IV 히스토리 화면에 기준으로 표시한다. */
     val historicalIvLabel: String get() = "데이터 소스의 30일 IV"
 
