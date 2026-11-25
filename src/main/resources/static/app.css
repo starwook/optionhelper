@@ -23,6 +23,28 @@
   --card: var(--surface);
   --accent: var(--call);
   --hv: var(--event);
+  color-scheme: dark;
+}
+
+/* 라이트 모드(theme.js가 <html data-theme="light">로 켠다). 색의 의미는 다크와 같다 */
+:root[data-theme="light"] {
+  --bg: #f4f6fa;
+  --surface: #ffffff;
+  --raised: #eaeef4;
+  --line: #dce1e9;
+  --text: #151b26;
+  --muted: #566073;
+  --faint: #868fa0;
+  --up: #0f9d63;
+  --down: #dc3c45;
+  --call: #1f74d8;
+  --call-bg: rgba(31, 116, 216, .08);
+  --put: #7445d6;
+  --put-bg: rgba(116, 69, 214, .08);
+  --event: #a86f00;
+  --event-bg: rgba(245, 180, 40, .16);
+  --focus: #1f74d8;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -103,3 +125,12 @@ footer { padding: 12px 20px 16px; font-size: 13px; color: var(--faint); border-t
 .chart-msg { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--bg); }
 .quote-note { margin: 0; font-size: 12px; color: var(--faint); }
 
+
+/* 다크/라이트 전환 버튼(theme.js가 모든 페이지 오른쪽 아래에 붙인다) */
+.theme-toggle {
+  position: fixed; right: 16px; bottom: 16px; z-index: 90;
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--raised); color: var(--muted); font-size: 13px; cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .15);
+}
+.theme-toggle:hover { color: var(--text); }

@@ -50,7 +50,8 @@ const QuoteChart = (() => {
     let picked = new Set(JSON.parse(localStorage.getItem(IND_STORE) || 'null') ?? IND_DEFAULT);
     el.ind.querySelectorAll('input').forEach((x) => { x.checked = picked.has(x.value); });
     const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-    const COLOR = { up: css('--up'), down: css('--down'), line: css('--line'), muted: css('--muted'), faint: css('--faint'), main: css('--focus'), sub: css('--event') };
+    const readColors = () => ({ up: css('--up'), down: css('--down'), line: css('--line'), muted: css('--muted'), faint: css('--faint'), main: css('--focus'), sub: css('--event') });
+    let COLOR = readColors();
     const alpha = (hex, a) => hex + Math.round(a * 255).toString(16).padStart(2, '0'); // #rrggbb → #rrggbbaa
 
     /** 맨 위 현재가만 서버가 밀어 준다(SSE, 약 1초). */
@@ -138,6 +139,15 @@ const QuoteChart = (() => {
     }
     const chartDate = (t) => new Date(t * 1000).toLocaleDateString('ko-KR', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
 
+    // 차트 색(테마 전환 때 다시 넣으려고 함수로 둔다)
+    const chartColors = () => ({
+      layout: { background: { color: 'transparent' }, textColor: COLOR.muted, fontSize: 12, panes: { separatorColor: COLOR.line, separatorHoverColor: alpha(COLOR.muted, 0.3) } },
+      grid: { vertLines: { color: COLOR.line }, horzLines: { color: COLOR.line } },
+      rightPriceScale: { borderColor: COLOR.line },
+      timeScale: { borderColor: COLOR.line },
+    });
+    const candleColors = () => ({ upColor: COLOR.up, downColor: COLOR.down, wickUpColor: COLOR.up, wickDownColor: COLOR.down });
+
     /** 차트를 한 번 만들고, 봉 데이터가 바뀌었을 때만 다시 넣는다. 라이브러리가 없으면 false. */
     function drawChart(c) {
       if (!window.LightweightCharts) return false;
@@ -152,14 +162,12 @@ const QuoteChart = (() => {
         sc.chart = LightweightCharts.createChart(el.canvas, {
           width: el.canvas.clientWidth,
           height: el.canvas.clientHeight,
-          layout: { background: { color: 'transparent' }, textColor: COLOR.muted, fontSize: 12, panes: { separatorColor: COLOR.line, separatorHoverColor: alpha(COLOR.muted, 0.3) } },
-          grid: { vertLines: { color: COLOR.line }, horzLines: { color: COLOR.line } },
-          rightPriceScale: { borderColor: COLOR.line },
-          timeScale: { borderColor: COLOR.line, rightOffset: 4, tickMarkFormatter: (t, type) => chartTime(t, type) },
+          ...chartColors(),
+          timeScale: { ...chartColors().timeScale, rightOffset: 4, tickMarkFormatter: (t, type) => chartTime(t, type) },
           localization: { locale: 'ko-KR', timeFormatter: (t) => chartTime(t) },
           crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
         });
-        sc.series = sc.chart.addSeries(LightweightCharts.CandlestickSeries, { upColor: COLOR.up, downColor: COLOR.down, wickUpColor: COLOR.up, wickDownColor: COLOR.down, borderVisible: false });
+        sc.series = sc.chart.addSeries(LightweightCharts.CandlestickSeries, { ...candleColors(), borderVisible: false });
         sc.chart.subscribeCrosshairMove((p) => showLegend(p.seriesData?.get(sc.series)));
         buildIndicators();
       }
@@ -333,6 +341,15 @@ const QuoteChart = (() => {
       render();
     });
     setInterval(loadChart, CHART_POLL_MS);
+    // 다크/라이트가 바뀌면(theme.js) 캔버스 색을 다시 넣는다. 지표 선은 새로 만들고, 점선은 render()가 다시 칠한다
+    window.addEventListener('themechange', () => {
+      COLOR = readColors();
+      if (!sc.chart) return;
+      sc.chart.applyOptions(chartColors());
+      sc.series.applyOptions(candleColors());
+      buildIndicators();
+      render();
+    });
 
     return {
       setSymbol(symbol) {
