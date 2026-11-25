@@ -34,10 +34,11 @@ class HyperliquidParserTest {
             HyperliquidParser.candles(
                 mapper.readTree(
                     """[{"t":1795478400000,"T":1795564799999,"s":"xyz:NVDA","i":"1d",""" +
-                        """"o":"165.19","c":"152.47","h":"168.97","l":"150.62","v":"1","n":2}]""",
+                        """"o":"165.19","c":"152.47","h":"168.97","l":"150.62","v":"1234.5","n":2}]""",
                 ),
             )
         assertThat(c.single().start).isEqualTo(Instant.ofEpochMilli(1795478400000))
         assertThat(c.single().close).isEqualTo(152.47)
+        assertThat(c.single().volume).isEqualTo(1234.5)
     }
 }

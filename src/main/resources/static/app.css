@@ -90,10 +90,16 @@ footer { padding: 12px 20px 16px; font-size: 13px; color: var(--faint); border-t
 .ranges button[aria-pressed="true"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
 .ranges .sep { width: 1px; margin: 4px 6px; background: var(--line); }
 /* 봉 차트: 그림은 Lightweight Charts가 .quote-canvas 안에 그린다. 범례(시·고·저·종)와 안내 문구는 그 위에 겹친다 */
+.quote-ind { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 13px; color: var(--muted); }
+.quote-ind label { cursor: pointer; }
+/* 높이는 quotechart.js가 켠 지표 칸 수에 맞춰 바꾼다(가격 칸 380px + 아래 칸마다 110px) */
 .quote-chart { position: relative; height: 380px; margin-top: 8px; }
 .quote-canvas { height: 100%; }
 .quote-legend { position: absolute; top: 4px; left: 8px; z-index: 3; font-size: 13px; color: var(--muted); pointer-events: none; }
 .quote-legend b { color: var(--text); font-weight: 600; margin-right: 8px; }
+/* 아래 칸(거래량·RSI 등) 이름표: 위치(top)는 quotechart.js가 칸마다 넣는다 */
+.quote-pane-label { position: absolute; left: 8px; z-index: 3; font-size: 12px; color: var(--muted); pointer-events: none; }
+.quote-pane-label b { color: var(--text); font-weight: 600; margin-right: 8px; }
 .chart-msg { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--bg); }
 .quote-note { margin: 0; font-size: 12px; color: var(--faint); }
 

@@ -80,7 +80,7 @@ class FakeMarketDataSource(private val clock: Clock) : UnderlyingPriceSource {
             .map {
                 val open = price(it)
                 val close = price(it.plusSeconds(step))
-                IntradayBar(it, open, maxOf(open, close), minOf(open, close), close)
+                IntradayBar(it, open, maxOf(open, close), minOf(open, close), close, 1000.0 + abs(close - open) * 5000)
             }.toList()
     }
 

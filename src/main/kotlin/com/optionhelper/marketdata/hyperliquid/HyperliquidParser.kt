@@ -3,13 +3,14 @@ package com.optionhelper.marketdata.hyperliquid
 import com.fasterxml.jackson.databind.JsonNode
 import java.time.Instant
 
-/** 봉 한 개(시작 시각, 시가·고가·저가·종가). 값은 응답에서 문자열로 온다. */
+/** 봉 한 개(시작 시각, 시가·고가·저가·종가, 거래량 `v`). 값은 응답에서 문자열로 온다. */
 data class HyperliquidCandle(
     val start: Instant,
     val open: Double,
     val high: Double,
     val low: Double,
     val close: Double,
+    val volume: Double,
 )
 
 /** Hyperliquid 응답 해석(docs/외부API-명세.md 5절). 네트워크 없이 테스트할 수 있게 JSON 트리만 받는다. */
@@ -42,6 +43,7 @@ object HyperliquidParser {
                 high = it.path("h").asText().toDouble(),
                 low = it.path("l").asText().toDouble(),
                 close = it.path("c").asText().toDouble(),
+                volume = it.path("v").asText().toDoubleOrNull() ?: 0.0,
             )
         }
 }
