@@ -7,11 +7,11 @@ main { padding: 20px; max-width: 1280px; width: 100%; margin: 0 auto; display: g
 .subbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; max-width: 1280px; width: 100%; margin: 0 auto; padding: 14px 20px 0; }
 .subbar select { background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font-size: 16px; font-weight: 700; }
 .grow { flex: 1; }
-/* 모의투자 안의 화면 전환: 실시간 | 빨리감기 */
-.modes { display: flex; gap: 4px; }
-.modes a { border: 1px solid transparent; border-radius: 8px; padding: 5px 14px; color: var(--muted); }
-.modes a[aria-current="page"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
-.modes a:hover { text-decoration: none; color: var(--text); }
+/* 모의투자 안의 하위 탭: 실시간 | 빨리감기 (대시보드의 오늘 판단·전략·옵션 체인 탭 줄과 같은 밑줄 모양) */
+.subtabs { display: flex; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.subtabs a { border-bottom: 2px solid transparent; padding: 12px 16px; color: var(--muted); font-size: 16px; white-space: nowrap; }
+.subtabs a[aria-current="page"] { color: var(--text); border-bottom-color: var(--text); font-weight: 700; }
+.subtabs a:hover { text-decoration: none; color: var(--text); }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; min-width: 0; }
 .panel h2 { margin: 0 0 12px; font-size: 15px; font-weight: 700; color: var(--muted); }
