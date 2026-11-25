@@ -189,13 +189,14 @@ const Paper = (() => {
 
   /**
    * 실시간 모의투자의 판단 기준 타일.
-   * c: { spot, move, moveDollars, iv, hv, ivHv, percentile, realized, expiryLabel }
+   * c: { spot, move, moveDollars, iv, hv, ivHv, percentile, realized, expiryLabel, hours }
    */
   function criteriaTiles(c) {
     const r = c.realized;
     return tilesHtml([
       { label: `${esc(c.expiryLabel)} 만기까지 예상 변동폭${term('expectedMove')}`, value: c.move == null ? '–' : `±${pct(c.move)}`,
-        sub: c.moveDollars == null ? '' : `±$${c.moveDollars.toFixed(2)} · ${(c.spot - c.moveDollars).toFixed(2)} ~ ${(c.spot + c.moveDollars).toFixed(2)}` },
+        sub: (c.moveDollars == null ? '' : `±$${c.moveDollars.toFixed(2)} · ${(c.spot - c.moveDollars).toFixed(2)} ~ ${(c.spot + c.moveDollars).toFixed(2)}`)
+          + (c.hours == null ? '' : ` · 장중 ${c.hours.toFixed(1)}시간 남음`) },
       { label: `ATM IV${term('iv')}`, value: pct(c.iv),
         sub: `최근 20일 실제 ${pct(c.hv)}${term('hv')} · ${c.ivHv == null ? '–' : c.ivHv.toFixed(2) + '배'} ${level(c.ivHv, 0.9, 1.3)}` },
       { label: `오늘 움직임 ÷ 하루 예상${term('realizedVsExpected')}`, value: r ? `<span class="${tone(r.realizedPct)}">${signedPct(r.realizedPct, 2)}</span>` : '–',
@@ -353,6 +354,38 @@ const Paper = (() => {
     </svg>`;
   }
 
+  /**
+   * 주문표에 담은 조합의 만기 손익 그래프($, 세트 수 반영). 0 위는 초록, 아래는 빨강.
+   * 손익은 행사가에서만 꺾이니 범위 양 끝과 그 안의 행사가만 이으면 된다. band: 시장 예상 범위 [아래, 위](회색 띠).
+   */
+  function payoffChart(legs, marks, sets, spot, band, width) {
+    const premium = premiumOf(legs, marks);
+    const half = Math.max(spot * 0.1, band ? (band[1] - spot) * 2.5 : 0);
+    const lo = spot - half, hi = spot + half;
+    const xs = [lo, ...legs.map((l) => l.strike).filter((k) => k > lo && k < hi), hi].sort((a, b) => a - b);
+    const pts = xs.map((p) => [p, (payout(legs, p) - premium) * MULT * sets]);
+    const w = Math.max(280, width || 400), h = 180, padL = 56, padB = 22, top = 8;
+    const ys = pts.map((p) => p[1]).concat(0);
+    const y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const X = (p) => padL + ((p - lo) / (hi - lo)) * (w - padL - 8);
+    const Y = (y) => top + (1 - (y - y0) / (y1 - y0 || 1)) * (h - top - padB);
+    const path = pts.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
+    const zero = ((Y(0) - top) / (h - top - padB)).toFixed(3);
+    const label = (y) => (y >= 0 ? '+$' : '−$') + Math.abs(y).toFixed(0);
+    return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="만기 손익 그래프">
+      <defs><linearGradient id="payoffColor" x1="0" y1="${top}" x2="0" y2="${h - padB}" gradientUnits="userSpaceOnUse"><stop offset="${zero}" style="stop-color: var(--up)"/><stop offset="${zero}" style="stop-color: var(--down)"/></linearGradient></defs>
+      ${band ? `<rect x="${X(Math.max(band[0], lo))}" y="${top}" width="${X(Math.min(band[1], hi)) - X(Math.max(band[0], lo))}" height="${h - top - padB}" style="fill: var(--text); fill-opacity: .07"/>` : ''}
+      <line x1="${padL}" x2="${w - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)"/>
+      <line x1="${X(spot)}" x2="${X(spot)}" y1="${top}" y2="${h - padB}" stroke="var(--faint)" stroke-dasharray="4 4"/>
+      <path d="${path}" fill="none" stroke="url(#payoffColor)" stroke-width="2.5"/>
+      <text x="${padL - 6}" y="${top + 8}" text-anchor="end">${label(y1)}</text>
+      <text x="${padL - 6}" y="${h - padB}" text-anchor="end">${label(y0)}</text>
+      <text x="${padL}" y="${h - 4}">$${lo.toFixed(0)}</text>
+      <text x="${X(spot)}" y="${h - 4}" text-anchor="middle">현재</text>
+      <text x="${w - 8}" y="${h - 4}" text-anchor="end">$${hi.toFixed(0)}</text>
+    </svg><p class="faint small">만기 때 주가별 손익 · 회색 띠 = 시장 예상 범위</p>`;
+  }
+
   // ── 확인창·알림: 브라우저 기본 confirm/alert는 막히는 환경(앱 내장 브라우저 등)이 있어 화면 안 <dialog>로 띄운다 ──
   let box = null;
   function dialog(message, buttons) {
@@ -374,6 +407,6 @@ const Paper = (() => {
     START_CASH, MULT, esc, money, signedMoney, pct, signedPct, tone, strikeText, legText, etDate,
     newAccount, sync, load, save, preview, open, close, positionValue, equity, buyingPower, reserved, basis,
     analyze, candidates, rate, ideaCards, viewPills, tilesHtml, criteriaTiles, eventsHtml, zonesHtml, marksFor, chainHtml, ticketHtml, ticketClick,
-    positionsHtml, closedHtml, equityChart,
+    positionsHtml, closedHtml, equityChart, payoffChart,
   };
 })();

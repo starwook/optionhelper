@@ -13,12 +13,6 @@ interface IvHistory {
         symbol: String,
         since: Instant,
     ): List<Double>
-
-    /** since 이후 시간순 ATM IV(추이 차트용). */
-    fun points(
-        symbol: String,
-        since: Instant,
-    ): List<IvPoint>
 }
 
 @Service
@@ -30,10 +24,4 @@ class SnapshotIvHistory(
         symbol: String,
         since: Instant,
     ) = repository.findAtmIvs(source.feed.name, symbol, since)
-
-    override fun points(
-        symbol: String,
-        since: Instant,
-    ) = repository.findBySourceAndSymbolAndCapturedAtGreaterThanEqualOrderByCapturedAt(source.feed.name, symbol, since)
-        .mapNotNull { s -> s.atmIv?.let { IvPoint(s.capturedAt, it) } }
 }
