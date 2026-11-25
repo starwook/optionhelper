@@ -13,11 +13,9 @@
      계좌는 끝없이 이어지고(localStorage 'paper.account'), 일별·월별 수익률은 지난 거래일 장 마감 값을 서버에서 다시 계산해 만든다. -->
 <div class="approx-banner">모의 거래입니다. 옵션 호가는 <strong>이론가(근사값)</strong>이고 실제 호가가 아닙니다. 주가도 해외 가상자산 거래소의 주식 추종 무기한 선물 참고시세로, 실제 주가와 다를 수 있습니다.<span class="term-help" data-term="approximate" tabindex="0">?</span></div>
 <header class="bar">
-  <strong>모의투자</strong>
-  <nav class="modes" aria-label="모의투자 화면"><a href="/paper.html" aria-current="page">실시간 모의투자</a><a href="/drill.html">빨리감기 연습</a></nav>
-  <span class="grow"></span>
-  <a href="/">← 대시보드</a>
+  <nav class="mainnav" aria-label="화면"><a href="/#dashboard">대시보드</a><a href="/#schedule">일정</a><a href="/paper.html" aria-current="page">모의투자</a></nav>
 </header>
+<nav class="subtabs" aria-label="모의투자 모드"><a href="/paper.html" aria-current="page">실시간 모의투자</a><a href="/drill.html">빨리감기 연습</a></nav>
 <!-- 이 화면 안의 상태: 종목 선택, 정규장 여부 -->
 <div class="subbar">
   <select id="symbol" aria-label="종목"></select>
