@@ -253,7 +253,7 @@ document.addEventListener('change', async (e) => {
 });
 
 (async () => {
-  try { await P.sync([KEY]); } catch (err) { $('status').textContent = '계좌 불러오기 실패: ' + err.message; return; }
+  try { await P.sync(); } catch (err) { $('status').textContent = '계좌 불러오기 실패: ' + err.message; return; }
   acc = P.load(KEY) || P.newAccount(new Date().toISOString());
   save();
   const w = await api('/api/watchlist');

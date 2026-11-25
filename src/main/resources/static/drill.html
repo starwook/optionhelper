@@ -277,7 +277,7 @@ document.addEventListener('change', (e) => {
 
 (async () => {
   try {
-    await P.sync([KEY, HISTORY]);
+    await P.sync();
     g = P.load(KEY);
     if (g?.game) await refresh(); else await newGame();
   } catch (err) {
