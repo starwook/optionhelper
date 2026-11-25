@@ -84,4 +84,4 @@ IV 기록은 데이터 소스가 주는 일별 IV를 `daily_iv` 테이블에 소
 
 ## 구조
 
-도메인 기준 패키지: `pricing`(블랙-숄즈·IV·만기 시계), `option`(체인·스냅샷), `strategy`(전략 손익·수수료), `volatility`, `signal`, `earnings`, `seasonality`, `marketdata`(데이터 소스 인터페이스와 구현), `scenario`(보유 옵션 시나리오), `watchlist`, `dashboard`(화면 조립·API·스냅샷 기록), `paper`(모의투자 가격 계산·빨리감기 게임). 화면은 `src/main/resources/static/`의 `index.html`(실시간), `iv.html`(IV 히스토리), `review.html`(복기), `paper.html`(실시간 모의투자), `drill.html`(빨리감기 연습). 두 모의투자 화면은 `paper.js`(계좌·주문 계산과 화면 조각)·`paper.css`를 같이 쓴다. 맨 위 주가·봉 차트는 `quotechart.js` 부품 하나를 대시보드와 실시간 모의투자가 같이 쓴다(스타일은 `app.css`).
+도메인 기준 패키지: `pricing`(블랙-숄즈·IV·만기 시계), `option`(체인·스냅샷), `strategy`(전략 손익·수수료), `volatility`, `signal`, `earnings`, `seasonality`, `marketdata`(데이터 소스 인터페이스와 구현), `scenario`(보유 옵션 시나리오), `watchlist`, `dashboard`(화면 조립·API·스냅샷 기록), `paper`(모의투자 가격 계산·빨리감기 게임). 화면은 `src/main/resources/static/`의 `index.html`(실시간), `iv.html`(IV 히스토리), `review.html`(복기), `paper.html`(실시간 모의투자), `drill.html`(빨리감기 연습). 두 모의투자 화면은 `paper.js`(계좌·주문 계산과 화면 조각)·`paper.css`를 같이 쓴다. 맨 위 주가·봉 차트는 `quotechart.js` 부품 하나를 대시보드와 실시간 모의투자가 같이 쓴다(스타일은 `app.css`). 봉 묶기와 보조지표(이동평균·볼린저·RSI·스토캐스틱·MACD) 계산은 `stockchart` 패키지.
