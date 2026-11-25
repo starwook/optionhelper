@@ -30,6 +30,19 @@ optionhelper:
     source: fake
     # 관심 종목 실적 일정을 백그라운드로 주 1회 갱신
     background-refresh: true
+  macro-actuals:
+    # bls(키 없음) | fake. 경제지표 발표 결과(CPI·PPI·고용보고서)를 평소 6시간, 발표 후 2시간은 10분마다 받아 DB에 기록
+    source: bls
+    background-refresh: true
+  macro-flash:
+    # 발표 직후 공식 값보다 먼저 Claude(웹 검색)로 속보를 뽑는다. Claude 키가 없으면 자동으로 꺼짐
+    enabled: true
+  claude:
+    # 앱 공용 Claude API 설정. 키는 application-local.yml의 optionhelper.antropic.api-key를 그대로 읽는다
+    api-key: ${optionhelper.antropic.api-key:}
+    model: claude-haiku-5-5
+    # 앱 전체 월 호출 상한(Haiku + 검색 2회 ≈ 1회 0.02달러 → 한 달 최대 약 0.2달러)
+    monthly-call-limit: 10
   pricing:
     risk-free-rate: 0.04
   recorder:

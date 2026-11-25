@@ -568,3 +568,67 @@ public void error(int id, long errorTime, int errorCode, String errorMsg, String
 - [H2] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint
 - [H3] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint/perpetuals
 - [H4] https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/rate-limits-and-user-limits
+
+## 6. 경제지표 발표 결과 (2026-11-26)
+
+확인 수준 표기에 **GPT**(GPT 답변, 공식 링크 첨부, 직접 확인 전)를 추가로 쓴다.
+
+### 6-1. BLS Public Data API v2 (`macro/BlsMacroActualSource`, 구현됨)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 요청 | `POST https://api.bls.gov/publicAPI/v2/timeseries/data/`, JSON 본문 `{"seriesid":[...],"startyear":"2025","endyear":"2026"}` | 실측 |
+| 키 | 키(`registrationkey`) 없이 불러도 성공(2026-11-26). 키 등록 시 하루 500회. 키 없을 때 한도는 미확인 | 실측 / GPT |
+| 반영 시점 | 발표값이 API에 **1일 늦게** 반영(정확한 시각 미확인). 앱은 평소 6시간마다, 발표 후 2시간은 10분마다 받고, 새 월 값을 처음 받으면 "발표 후 N분"을 INFO 로그로 남긴다 → 2026-12-04 고용보고서로 실측 예정 | GPT |
+| 응답 | `status`(`REQUEST_SUCCEEDED`), `message[]`, `Results.series[]` → `seriesID`, `data[]` → `year`, `period`(`M01`~`M12`, 연평균은 `M13`), `periodName`, `value`(문자열), `latest`(가장 최근 행만 `"true"`), `footnotes` | 실측 |
+| 시리즈 | 전체 CPI(계절조정) `CUSR0000SA0`, 근원 CPI `CUSR0000SA0L1E`, PPI 최종수요 `WPSFD4`, 비농업 고용(천 명) `CES0000000001`, 실업률(%) `LNS14000000` | GPT + 실측(값 수신 확인) |
+
+실측 예(2026-11-26): `CUSR0000SA0` 2026-M10 `337.476`, M09 `336.298` / `CES0000000001` M10 `159293` / `LNS14000000` M10 `4.1`.
+
+**코드가 쓰는 것**: `status`, `seriesID`, `year`, `period`, `value`. CPI·PPI는 지수로 전월비를 계산하고, 고용은 전월 차이(천 명), 실업률은 값 그대로. 발표일이 속한 달의 **전달 값**을 그 발표의 결과로 본다(셧다운 등으로 어긋날 수 있어 화면에 "몇 월분"을 같이 씀).
+
+### 6-2. BEA API — PCE (구현 전)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 데이터셋·표 | `NIPA`, 월간 값 표 `T20304`(2.3.4, PCE 가격지수 1행, 근원 PCE 25행), 월간 변동률 표 `T20807`(2.8.7) | GPT |
+| 키 | 필요(`UserID`) | GPT |
+| 반영 시점 | 다른 공개 자료와 같은 발표 일정(08:30 ET). 별도 지연은 미확인 | GPT |
+| 요청·응답 형식 | **미확인** — 키 발급 후 실측으로 채운다 | 미확인 |
+
+근거: https://apps.bea.gov/API/docs/ , https://apps.bea.gov/api/_pdf/bea_web_service_api_user_guide.pdf
+
+### 6-3. FRED API — FOMC 금리 결정 (구현 전)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 시리즈 | 목표 범위 하단 `DFEDTARL`, 상단 `DFEDTARU`(일별, 새 범위는 효력 발생일부터) | GPT |
+| 키 | 필요 | GPT |
+| 반영 시점 | 미확인(결정문은 연준 사이트에 당일 14:00 ET) | GPT |
+| 요청·응답 형식 | **미확인** — 키 발급 후 실측으로 채운다 | 미확인 |
+
+근거: https://fred.stlouisfed.org/series/dfedtarl , https://fred.stlouisfed.org/docs/api/terms_of_use.html
+
+### 6-4. 반영 시점 재확인 (2026-11-26, GPT 답변)
+- **BLS API**: BLS API 기능 안내에 "공표 데이터와 API 조회 가능 시점 사이 1일 지연"이 명시돼 있다고 함. 발표 직후 몇 분 안 반영은 보장 없음 → **BLS API로는 실시간이 안 된다**(12/4 로그로 실측 확인 예정).
+- **FRED PCEPI·PCEPILFE**: BEA 발표 후 반영까지 걸리는 시간은 확인 불가(공식 SLA 없음).
+- **FRED DFEDTARU·DFEDTARL**: "The data updated each day is the data effective as of that day" — 효력일 기준 값. 결정 당일 14:00 ET 즉시 반영 여부는 확인 불가.
+- **FRED `fredgraph.csv`(키 없음)**: 자동 호출·공개 게시 허용 여부와 조항 확인 불가. Legal Notices에 출처 표시·서버 부하·무단 스크래핑 제한 조항이 있다고 함 → 쓰지 않는다.
+- **연준 RSS**: 피드 목록 페이지 https://www.federalreserve.gov/feeds/feeds.htm 에 통화정책·보도자료 피드가 있으나, FOMC 성명 전용 주소와 14:00 ET 동시 게시 여부는 확인 불가.
+
+## 7. Anthropic Claude API (`claude/ClaudeClient`, 2026-11-26)
+
+| 항목 | 내용 | 확인 |
+|---|---|---|
+| 라이브러리 | 공식 Java SDK `com.anthropic:anthropic-java:3.3.0`, `AnthropicOkHttpClient.builder().apiKey(..)`, `client.messages().create(MessageCreateParams)` | 공식(claude-api 스킬 문서) |
+| 설정 | `optionhelper.claude.api-key`(= 로컬 파일의 `optionhelper.antropic.api-key`), `optionhelper.claude.model`(기본 `claude-haiku-5-5`) | — |
+| 웹 검색 도구 | Haiku는 `WebSearchTool20250305`(기본형), 그 밖의 최신 모델은 `WebSearchTool20260209`(동적 필터링) | 공식 |
+| 요금 | Haiku 5.5 입력 $0.10 / 출력 $0.50 (100만 토큰당, 10만 토큰 이하 요청), 웹 검색 1회 $0.01 | 공식(스킬 문서) |
+| 실측 | 10월분 CPI·고용 추출: Opus 5.5 17초·검색 4회·입력 42,629토큰(약 $0.23), Haiku 5.5 4.5초·검색 2회·입력 21,213토큰(약 $0.02), 둘 다 4개 값 정답. 11/25 PCE(10월분) 속보: Haiku 검색 2회·입력 31,891토큰, 전월비 +0.3%·근원 +0.3%, 출처 bea.gov(공식 값과 대조 전) | 실측 |
+
+**코드가 쓰는 것**: 답의 텍스트 블록(JSON 한 개를 요청), `usage.inputTokens/outputTokens/serverToolUse.webSearchRequests`(로그). 답 앞에 군더더기가 붙을 수 있어 첫 `{`부터 마지막 `}`까지만 읽는다.
+
+### 7-1. 비용 제한과 예상치 (2026-11-26)
+- 속보는 발표 5·15·40분 뒤 최대 3번, 웹 검색은 1회 최대 2번. 모든 호출은 `claude_call`(목적·모델·검색 수·토큰)에 먼저 기록하고 월 10회를 넘으면 부르지 않는다.
+- 같은 호출에서 언론 보도 기준 예상치(`expected_*`)와 그 기사 주소도 받는다. 11/25 PCE 실측: 실제 +0.3%·근원 +0.3%, 예상 +0.3%·+0.3%, 예상치 출처 tradingeconomics.com 기사.
+- 첫 속보 구현(요약·상세 문장 저장)의 `macro_flash` 테이블은 쓰지 않는다(로컬 DB에 1줄 남아 있음). 지금은 숫자만 저장하는 `macro_flash_result`.

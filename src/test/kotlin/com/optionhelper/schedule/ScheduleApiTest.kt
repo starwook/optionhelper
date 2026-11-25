@@ -22,7 +22,7 @@ class ScheduleApiTest {
 
     @Test
     fun `일정 JSON - 경제지표, 관심 종목 실적(레버리지 ETF 제외), 나스닥 월별 수익률`() {
-        val body = mockMvc.get("/api/schedule").andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val body = mockMvc.get("/api/schedule").andExpect { status { isOk() } }.andReturn().response.getContentAsString(Charsets.UTF_8)
         val s = objectMapper.readTree(body)
 
         assertThat(s["macro"].size()).isGreaterThan(0)
@@ -37,6 +37,12 @@ class ScheduleApiTest {
             }.map { it["timeKst"].asText() },
         ).allMatch { it == "06:00" || it == "05:00" }
         assertThat(s["macroCoversUntil"].asText()).isEqualTo("2027-12-22")
+        // 발표 전 일정에는 결과가 붙지 않는다
+        assertThat(fomc["actual"].isNull).isTrue()
+        assertThat(s["macroActualSource"].asText()).isEqualTo("가짜 데이터")
+        // 테스트에는 Claude 키가 없어 속보 기능이 꺼져 있다
+        assertThat(s["flashModel"].isNull).isTrue()
+        assertThat(s["fastPoll"].asBoolean()).isFalse()
         val symbols = s["earnings"].map { it["symbol"].asText() }.toSet()
         // 테스트끼리 DB 캐시를 같이 써서 특정 종목은 시점에 따라 범위 밖일 수 있다. 여러 종목이 모이는지만 본다
         assertThat(symbols.size).isGreaterThan(3)
