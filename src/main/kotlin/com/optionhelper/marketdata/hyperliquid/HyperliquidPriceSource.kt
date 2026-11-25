@@ -93,7 +93,7 @@ class HyperliquidPriceSource(
         return candles(symbol, "1d", from.atStartOfDay(ZoneOffset.UTC).toInstant(), clock.instant())
             .map { it to it.start.atZone(ZoneOffset.UTC).toLocalDate() }
             .filter { (_, date) -> date.isBefore(today) && MarketClock.isTradingDay(date) }
-            .map { (c, date) -> DailyBar(date, c.open, c.high, c.low, c.close) }
+            .map { (c, date) -> DailyBar(date, c.open, c.high, c.low, c.close, c.volume) }
     }
 
     /** 5분봉은 24시간 이어지므로 정규장 시간만 남긴다. */
@@ -115,7 +115,7 @@ class HyperliquidPriceSource(
     ): List<IntradayBar> =
         candles(symbol, "${minutes}m", from, to)
             .filter { !it.start.isBefore(from) && it.start.isBefore(to) }
-            .map { IntradayBar(it.start, it.open, it.high, it.low, it.close) }
+            .map { IntradayBar(it.start, it.open, it.high, it.low, it.close, it.volume) }
 
     private fun restMark(coin: String): Double =
         HyperliquidParser.assetMarks(post(mapOf("type" to "metaAndAssetCtxs", "dex" to properties.dex)))[coin]

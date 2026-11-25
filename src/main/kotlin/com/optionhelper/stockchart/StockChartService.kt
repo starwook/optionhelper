@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * 봉 차트. intraday면 분봉(time = 봉 시작 시각), 아니면 일·주·월·년봉(time = 기간 첫날 UTC 자정).
  * previousClose는 분봉일 때 마지막 장의 전일 종가(점선). live는 마지막 봉에 오늘 장이 들어 있는지
- * (그러면 화면이 대시보드 현재가로 마지막 봉을 이어 그린다).
+ * (그러면 화면이 대시보드 현재가로 마지막 봉을 이어 그린다). indicators는 candles와 같은 순서의 보조지표.
  */
 data class StockChartResponse(
     val symbol: String,
@@ -23,6 +23,7 @@ data class StockChartResponse(
     val previousClose: Double?,
     val live: Boolean,
     val candles: List<Candle>,
+    val indicators: IndicatorSet = Indicators.of(candles),
 )
 
 class StockChartUnavailableException(message: String) : RuntimeException(message)

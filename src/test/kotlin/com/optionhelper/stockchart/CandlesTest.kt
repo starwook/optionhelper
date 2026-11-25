@@ -49,13 +49,15 @@ class CandlesTest {
     fun `월봉 - 같은 달 일봉을 합친다`() {
         val bars =
             listOf(
-                DailyBar(LocalDate.of(2026, 10, 30), 1.0, 2.0, 0.5, 1.5),
-                DailyBar(LocalDate.of(2026, 11, 2), 1.5, 3.0, 1.0, 2.0),
-                DailyBar(LocalDate.of(2026, 11, 3), 2.0, 2.5, 0.8, 2.2),
+                DailyBar(LocalDate.of(2026, 10, 30), 1.0, 2.0, 0.5, 1.5, 10.0),
+                DailyBar(LocalDate.of(2026, 11, 2), 1.5, 3.0, 1.0, 2.0, 20.0),
+                DailyBar(LocalDate.of(2026, 11, 3), 2.0, 2.5, 0.8, 2.2, 30.0),
             )
         val candles = Candles.periodic(bars, ChartInterval.MONTH)
         assertThat(candles).hasSize(2)
-        assertThat(candles[1]).isEqualTo(Candle(LocalDate.of(2026, 11, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond(), 1.5, 3.0, 0.8, 2.2))
+        assertThat(
+            candles[1],
+        ).isEqualTo(Candle(LocalDate.of(2026, 11, 1).atStartOfDay(ZoneOffset.UTC).toEpochSecond(), 1.5, 3.0, 0.8, 2.2, 50.0))
     }
 
     @Test
