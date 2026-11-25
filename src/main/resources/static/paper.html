@@ -30,6 +30,13 @@
   <!-- 주가·봉 차트: quotechart.js가 채운다 -->
   <section class="panel"><div id="quote"></div></section>
 
+  <!-- 차트 아래는 탭으로 바꿔 본다: 지금 기준(판단) / 주문(호가창·주문표·계좌) -->
+  <nav class="tabs" id="tabs" aria-label="모의투자 보기">
+    <button data-tab="criteria" aria-selected="true">지금 기준</button>
+    <button data-tab="order" aria-selected="false">주문</button>
+  </nav>
+
+  <div class="tab" id="tab-criteria">
   <section class="panel">
     <h2>만기</h2>
     <div class="pills" id="expiries"></div>
@@ -41,24 +48,28 @@
     <p class="note warn" id="warnings" hidden></p>
     <p class="faint small">옵션 값이 최근 20일 실제 변동성으로 정한 이론가라 IV ÷ HV는 늘 1 근처이고, 실적 전 IV 상승도 반영돼 있지 않습니다.</p>
   </section>
+  </div>
 
+  <div class="tab" id="tab-order" hidden>
   <section class="panel">
     <div class="stats" id="stats"></div>
     <div class="actions" style="margin-top:12px"><span class="muted small" id="since"></span></div>
   </section>
   <section class="panel"><h2>들고 있는 포지션 (10초마다 다시 계산)</h2><div id="positions"></div></section>
-    <section class="panel" style="margin-top:16px">
-      <div class="grid2">
-        <div><h2>호가창 · 가격을 누르면 사기로 담깁니다 (팔기는 주문표에서 "매도로")</h2><div id="chain"></div></div>
-        <div class="sticky"><h2>주문표</h2><div id="ticket"></div><div class="chart" id="payoff"></div></div>
-      </div>
-    </section>
-    <section class="panel" style="margin-top:16px">
-      <h2>어떻게 될 것 같나요? 전망을 고르면 후보를 보여 드려요 (고르는 건 직접)</h2>
-      <div class="pills" id="views"></div>
-      <div class="cards" id="cards"></div>
-      <p class="faint small">카드의 숫자는 이론가 기준 참고값이고 투자 조언이 아닙니다.</p>
-    </section>
+  <section class="panel">
+    <h2>만기</h2>
+    <div class="pills" id="orderExpiries"></div>
+    <div class="grid2">
+      <div><h2>호가창 · 가격을 누르면 사기로 담깁니다 (팔기는 주문표에서 "매도로")</h2><div id="chain"></div></div>
+      <div class="sticky"><h2>주문표</h2><div id="ticket"></div><div class="chart" id="payoff"></div></div>
+    </div>
+  </section>
+  <section class="panel">
+    <h2>어떻게 될 것 같나요? 전망을 고르면 후보를 보여 드려요 (고르는 건 직접)</h2>
+    <div class="pills" id="views"></div>
+    <div class="cards" id="cards"></div>
+    <p class="faint small">카드의 숫자는 이론가 기준 참고값이고 투자 조언이 아닙니다.</p>
+  </section>
 
   <section class="panel"><h2>평가액<span class="term-help" data-term="equity" tabindex="0">?</span></h2><div class="chart" id="equityChart"></div></section>
   <section class="grid2">
@@ -66,6 +77,7 @@
     <div class="panel"><h2>월별 수익률</h2><div id="monthly"></div></div>
   </section>
   <section class="panel"><h2>끝난 거래</h2><div id="closed"></div></section>
+  </div>
 </main>
 <footer>주문은 미국 정규장 시간(한국 시간 23:30~06:00, 서머타임 22:30~05:00)에만 됩니다. 체결은 이론가 한 가격으로 하고 수수료는 없다고 봅니다. 만기에 내가격이면 차액만 현금 정산합니다. 지난 날의 평가액은 일봉 종가로 다시 계산한 값입니다. 계좌는 서버에 저장됩니다. <span id="source"></span></footer>
 
@@ -184,7 +196,7 @@ function upcomingEvents() {
 
 function renderOrder() {
   quote.update(d);
-  $('expiries').innerHTML = d.expirations.slice(0, 12).map((e) => `<button data-expiry="${e}" aria-pressed="${e === d.expiry}">${md(e)} <small>${daysLeft(e) <= 0 ? '오늘' : 'D-' + daysLeft(e)}</small></button>`).join('');
+  $('expiries').innerHTML = $('orderExpiries').innerHTML = d.expirations.slice(0, 12).map((e) => `<button data-expiry="${e}" aria-pressed="${e === d.expiry}">${md(e)} <small>${daysLeft(e) <= 0 ? '오늘' : 'D-' + daysLeft(e)}</small></button>`).join('');
   $('feed').innerHTML = `${P.esc(d.feed.label)} · ${hm(d.asOfEt)} / ${hm(d.asOfKst)}${d.stale ? ' <span class="down">연결 끊김, 마지막 값</span>' : ''}`;
   $('source').textContent = `${d.feed.name}: ${d.feed.note} 실적 일정은 ${d.earningsSource}, 경제지표 일정은 수동 입력(${d.macro.coversUntil ?? '–'}까지). 조회 전용이며 투자 조언이 아닙니다.`;
   // 만기 안 일정 경고는 일정 타임라인이 보여 주므로 뺀다
@@ -233,13 +245,23 @@ function renderReturns() {
     ${months.map((x, i) => ({ ...x, r: x.v / (i ? months[i - 1].v : P.START_CASH) - 1 })).reverse().map((x) => `<tr><td class="left">${x.m}</td><td>${P.money(x.v)}</td><td class="${P.tone(x.r)}">${P.signedPct(x.r, 2)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
+// ── 탭: 차트 아래를 [지금 기준 | 주문] 중 하나만 보여 준다. 고른 탭은 이 브라우저에 기억 ──
+function showTab(name) {
+  document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
+  document.querySelectorAll('.tab').forEach((el) => { el.hidden = el.id !== 'tab-' + name; });
+  try { localStorage.setItem('paper.tab', name); } catch (e) { /* 저장 못 해도 동작에는 지장 없음 */ }
+  // 그래프는 보이는 폭으로 그리므로 탭이 보일 때 다시 그린다
+  if (name === 'order' && acc) { renderReturns(); if (d) renderTicket(); }
+}
+
 // ── 이벤트 (위임 한 곳) ──
 const clearTicket = () => { ticket = { legs: [], sets: 1, label: '', kind: null }; };
 document.addEventListener('click', async (e) => {
   const t = e.target.closest('button');
   if (!t) return;
   try {
-    if (t.dataset.expiry) { state.expiry = t.dataset.expiry; clearTicket(); await loadDashboard(); }
+    if (t.dataset.tab) showTab(t.dataset.tab);
+    else if (t.dataset.expiry) { state.expiry = t.dataset.expiry; clearTicket(); await loadDashboard(); }
     else if (t.dataset.view) { state.view = t.dataset.view; renderOrder(); }
     else if (P.ticketClick(t, ticket, ideas)) renderTicket();
     else if (t.id === 'submit') {
@@ -268,6 +290,7 @@ document.addEventListener('change', async (e) => {
 });
 
 (async () => {
+  try { showTab(localStorage.getItem('paper.tab') || 'criteria'); } catch (e) { /* 기본 탭 */ }
   try { await P.sync(); } catch (err) { $('status').textContent = '계좌 불러오기 실패: ' + err.message; return; }
   acc = P.load(KEY) || P.newAccount(new Date().toISOString());
   save();
