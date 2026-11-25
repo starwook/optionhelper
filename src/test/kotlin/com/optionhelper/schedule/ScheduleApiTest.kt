@@ -49,5 +49,7 @@ class ScheduleApiTest {
         assertThat(symbols).doesNotContain("SOXL")
         assertThat(s["nasdaq"]["symbol"].asText()).isEqualTo("XYZ100")
         assertThat(s["nasdaq"]["months"].size()).isEqualTo(12)
+        assertThat(s["spxVolatility"].size()).isGreaterThan(0)
+        assertThat(s["spxVolatility"].last()["hv20"].asDouble()).isGreaterThan(0.0)
     }
 }

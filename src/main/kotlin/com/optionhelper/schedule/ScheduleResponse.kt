@@ -20,6 +20,11 @@ data class ScheduleResponse(
     val earnings: List<ScheduleEarningsView>,
     val earningsSource: String,
     val nasdaq: NasdaqSeasonality,
+    // S&P500 20일 실현변동성 추이(우리 계산, VIX 아님). 일봉을 못 받으면 빈 목록
+    val spxVolatility: List<VolatilityPoint>,
+    // 최신값의 높고 낮음(낮음/보통/높음/매우 높음)과 차트에 그을 구간 경계(%)
+    val spxVolatilityLevel: String?,
+    val volatilityBoundaries: List<Double>,
     val warnings: List<String>,
 )
 
@@ -41,3 +46,7 @@ data class ScheduleMacroView(
 data class ScheduleEarningsView(val symbol: String, val date: LocalDate, val timing: String, val timeKst: String?)
 
 data class NasdaqSeasonality(val symbol: String, val label: String, val months: List<MonthStats>, val currentMonth: Int)
+
+// hv20은 연율 %(29.0 = 29.0%). 해외 가상자산 거래소의 S&P500 추종 무기한 선물 일봉(미국 거래일만)으로 계산.
+// today=true는 오늘 장중 가격을 임시 종가로 넣어 계산한 값(장중 계속 바뀜)
+data class VolatilityPoint(val date: LocalDate, val hv20: Double, val today: Boolean = false)
