@@ -30,18 +30,17 @@
   <!-- 주가·봉 차트: quotechart.js가 채운다 -->
   <section class="panel"><div id="quote"></div></section>
 
-  <!-- 차트 아래는 탭으로 바꿔 본다: 지금 기준(판단) / 주문(호가창·주문표·계좌) -->
+  <!-- 차트 아래는 탭으로 바꿔 본다: 주문(호가창·주문표·계좌, 기본) / 만기 분석(예상 변동폭·IV·일정) -->
   <nav class="tabs" id="tabs" aria-label="모의투자 보기">
-    <button data-tab="criteria" aria-selected="true">지금 기준</button>
-    <button data-tab="order" aria-selected="false">주문</button>
+    <button data-tab="order" aria-selected="true">주문</button>
+    <button data-tab="analysis" aria-selected="false">만기 분석</button>
   </nav>
 
-  <div class="tab" id="tab-criteria">
+  <div class="tab" id="tab-analysis" hidden>
   <section class="panel">
     <h2>만기</h2>
     <div class="pills" id="expiries"></div>
-    <h2 style="margin-top:16px">지금 기준 (전략을 고를 때 볼 숫자)</h2>
-    <div class="criteria-grid">
+    <div class="criteria-grid" style="margin-top:16px">
       <div><div id="criteria"></div><div id="zones"></div></div>
       <div><div id="events"></div></div>
     </div>
@@ -50,7 +49,7 @@
   </section>
   </div>
 
-  <div class="tab" id="tab-order" hidden>
+  <div class="tab" id="tab-order">
   <section class="panel">
     <div class="stats" id="stats"></div>
     <div class="actions" style="margin-top:12px"><span class="muted small" id="since"></span></div>
@@ -245,8 +244,9 @@ function renderReturns() {
     ${months.map((x, i) => ({ ...x, r: x.v / (i ? months[i - 1].v : P.START_CASH) - 1 })).reverse().map((x) => `<tr><td class="left">${x.m}</td><td>${P.money(x.v)}</td><td class="${P.tone(x.r)}">${P.signedPct(x.r, 2)}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
-// ── 탭: 차트 아래를 [지금 기준 | 주문] 중 하나만 보여 준다. 고른 탭은 이 브라우저에 기억 ──
+// ── 탭: 차트 아래를 [주문 | 만기 분석] 중 하나만 보여 준다. 고른 탭은 이 브라우저에 기억 ──
 function showTab(name) {
+  if (name !== 'analysis') name = 'order';
   document.querySelectorAll('#tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === name)));
   document.querySelectorAll('.tab').forEach((el) => { el.hidden = el.id !== 'tab-' + name; });
   try { localStorage.setItem('paper.tab', name); } catch (e) { /* 저장 못 해도 동작에는 지장 없음 */ }
@@ -290,7 +290,7 @@ document.addEventListener('change', async (e) => {
 });
 
 (async () => {
-  try { showTab(localStorage.getItem('paper.tab') || 'criteria'); } catch (e) { /* 기본 탭 */ }
+  try { showTab(localStorage.getItem('paper.tab')); } catch (e) { /* 기본 탭(주문) */ }
   try { await P.sync(); } catch (err) { $('status').textContent = '계좌 불러오기 실패: ' + err.message; return; }
   acc = P.load(KEY) || P.newAccount(new Date().toISOString());
   save();
