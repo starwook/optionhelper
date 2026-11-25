@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>빨리감기 연습</title>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/paper.css">
+</head>
+<body>
+<!-- 빨리감기 연습: 과거 날짜·종목을 가린 채(시작가 100) 25거래일을 하루·1주씩 넘기며 한 판을 몇 분 안에 끝낸다.
+     게임 상태(게임 ID, 날짜, 계좌)는 localStorage 'drill.current', 끝난 판은 'drill.history'. -->
+<div class="approx-banner">연습용 모의 거래입니다. 옵션 값은 과거 일봉으로 계산한 <strong>이론가(근사값)</strong>이고 실제 호가가 아니며, 가격은 시작가 100으로 환산해 종목을 가렸습니다.<span class="term-help" data-term="approximate" tabindex="0">?</span></div>
+<header class="bar">
+  <strong>모의투자</strong>
+  <nav class="modes" aria-label="모의투자 화면"><a href="/paper.html">실시간 모의투자</a><a href="/drill.html" aria-current="page">빨리감기 연습</a></nav>
+  <span class="grow"></span>
+  <a href="/">← 대시보드</a>
+</header>
+<!-- 이 화면 안의 상태: 게임 진행 날짜 -->
+<div class="subbar"><strong id="dayLabel"></strong><button class="ghost small" id="restart">새 게임</button></div>
+
+<main>
+  <section class="panel">
+    <div class="stats" id="stats"></div>
+    <div class="actions" style="margin-top:14px">
+      <button class="primary" id="next1">다음 날 →</button>
+      <button class="ghost" id="next5">1주 뒤 →</button>
+      <button class="ghost" id="nextEnd">끝까지 →</button>
+    </div>
+  </section>
+
+  <section class="panel" id="revealPanel" hidden></section>
+  <section class="panel"><h2>들고 있는 포지션</h2><div id="positions"></div></section>
+
+  <section class="panel">
+    <h2>가상 종목 주가 (점선 오른쪽이 연습 기간)</h2>
+    <div class="chart" id="priceChart"></div>
+    <p class="muted small" id="volLine"></p>
+  </section>
+
+  <div id="orderArea">
+    <section class="panel">
+      <h2>만기</h2>
+      <div class="pills" id="expiries"></div>
+      <h2>지금 기준 (전략을 고를 때 볼 숫자)</h2>
+      <div id="criteria"></div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <div class="grid2">
+        <div><h2>호가창 · 가격을 누르면 사기로 담깁니다 (팔기는 주문표에서 "매도로")</h2><div id="chain"></div></div>
+        <div class="sticky"><h2>주문표</h2><div id="ticket"></div></div>
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>어떻게 될 것 같나요? 전망을 고르면 후보를 보여 드려요 (고르는 건 직접)</h2>
+      <div class="pills" id="views"></div>
+      <div class="cards" id="cards"></div>
+      <p class="faint small">카드의 숫자는 이론가 기준 참고값이고 투자 조언이 아닙니다.</p>
+    </section>
+  </div>
+
+  <section class="panel"><h2>이번 판 평가액<span class="term-help" data-term="equity" tabindex="0">?</span></h2><div class="chart" id="equityChart"></div></section>
+  <section class="panel"><h2>끝난 거래</h2><div id="closed"></div></section>
+  <section class="panel"><h2>지난 게임</h2><div id="history"></div></section>
+</main>
+<footer>옵션 값은 그날까지의 최근 20거래일 실제 변동성으로 정한 이론가이고, 체결은 이 한 가격으로 하며 수수료는 없다고 봅니다. 실적 전 IV 상승·발표 뒤 IV 하락은 반영돼 있지 않습니다. 만기에 내가격이면 차액만 현금 정산합니다.</footer>
+
+<script src="/glossary.js"></script>
+<script src="/paper.js"></script>
+<script>
+const P = Paper;
+const $ = (id) => document.getElementById(id);
+const KEY = 'drill.current', HISTORY = 'drill.history';
+let g = null;     // { game, day, expiry, view, acc, equity: [[day, value]] }
+let data = null;  // 오늘(게임 날짜)의 /api/paper/drill/day 응답
+let marks = {};   // 포지션 id → 다리별 값
+let ticket = { legs: [], sets: 1, label: '', kind: null };
+let ideas = []; // 지금 만기의 전략 후보
+
+const api = async (url, body) => {
+  const res = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || res.statusText);
+  return json;
+};
+const save = () => P.save(KEY, g);
+
+async function newGame() {
+  const { game } = await api('/api/paper/drill/new');
+  g = { game, day: 0, expiry: null, view: null, acc: P.newAccount(0), equity: [[0, P.START_CASH]] };
+  ticket = { legs: [], sets: 1, label: '', kind: null };
+  save();
+  await refresh();
+}
+
+/** 오늘 화면 값과 포지션 값을 다시 받는다. */
+async function refresh() {
+  data = await api(`/api/paper/drill/day?game=${g.game}&day=${g.day}${g.expiry != null ? '&expiry=' + g.expiry : ''}`);
+  g.expiry = data.expiry;
+  marks = await markAll();
+  render();
+}
+
+async function markAll() {
+  const legs = g.acc.positions.flatMap((p) => p.legs.map((l) => ({ type: l.type, strike: l.strike, expiry: p.expiry })));
+  if (!legs.length) return {};
+  const list = await api('/api/paper/drill/marks', { game: g.game, day: g.day, legs });
+  const out = {};
+  let i = 0;
+  g.acc.positions.forEach((p) => { out[p.id] = p.legs.map(() => list[i++]); });
+  return out;
+}
+
+const exitInfo = () => ({ spot: data.spot, iv: data.atmIv });
+
+/** 하루씩 넘기며 만기 정산 → 평가액 기록. 마지막 날이면 남은 포지션을 그날 호가로 청산한다. */
+async function advance(n) {
+  for (let k = 0; k < n && g.day < data.totalDays; k++) {
+    g.day++;
+    g.expiry = null;
+    data = await api(`/api/paper/drill/day?game=${g.game}&day=${g.day}`);
+    marks = await markAll();
+    for (const p of [...g.acc.positions]) {
+      const m = marks[p.id];
+      if (m.every((x) => x.settled)) P.close(g.acc, p.id, m, g.day, { spot: m[0].settlementPrice, iv: data.atmIv }, true);
+    }
+    if (data.finished) for (const p of [...g.acc.positions]) P.close(g.acc, p.id, marks[p.id], g.day, exitInfo());
+    marks = await markAll();
+    g.equity.push([g.day, P.equity(g.acc, marks)]);
+  }
+  ticket = { legs: [], sets: 1, label: '', kind: null };
+  g.expiry = data.expiry;
+  if (data.finished && !g.recorded) recordHistory();
+  save();
+  render();
+}
+
+function recordHistory() {
+  const list = P.load(HISTORY) || [];
+  const r = data.reveal;
+  const final = g.equity[g.equity.length - 1][1];
+  list.unshift({ symbol: r.symbol, startDate: r.startDate, endDate: r.endDate, trades: g.acc.closed.length, returnPct: final / P.START_CASH - 1, finishedAt: new Date().toISOString() });
+  P.save(HISTORY, list.slice(0, 50));
+  g.recorded = true;
+}
+
+// ── 그리기 ──
+function render() {
+  const acc = g.acc, eq = P.equity(acc, marks);
+  $('dayLabel').textContent = data.finished ? '게임 끝' : `${g.day}일째 / ${data.totalDays}거래일`;
+  $('stats').innerHTML = [
+    ['평가액' + term('equity'), P.money(eq)],
+    ['수익률', `<span class="${P.tone(eq - P.START_CASH)}">${P.signedPct(eq / P.START_CASH - 1, 2)}</span>`],
+    ['현금', P.money(acc.cash)],
+    ['매수 가능' + term('buyingPower'), P.money(P.buyingPower(acc))],
+    ['묶인 증거금' + term('reserve'), P.money(P.reserved(acc))],
+  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  ['next1', 'next5', 'nextEnd'].forEach((id) => { $(id).disabled = data.finished; });
+
+  $('priceChart').innerHTML = priceChart(data.chart, data.chartStartIndex);
+  $('volLine').innerHTML = `오늘 종가 ${data.spot.toFixed(2)} · ATM IV${term('iv')} ${P.pct(data.atmIv)}`
+    + (data.expectedMovePct != null ? ` · ${data.expirations.find((e) => e.day === g.expiry)?.daysLeft}거래일 뒤 만기까지 예상 변동폭${term('expectedMove')} ±${P.pct(data.expectedMovePct)}` : '');
+
+  $('orderArea').hidden = data.finished;
+  $('expiries').innerHTML = data.expirations.map((e) => `<button data-expiry="${e.day}" aria-pressed="${e.day === g.expiry}">${e.daysLeft}거래일 뒤</button>`).join('')
+    || '<span class="muted">남은 만기가 없습니다. 끝까지 넘겨 결과를 보세요.</span>';
+  renderOrder();
+
+  const left = (p) => (p.expiry - g.day === 0 ? '오늘 만기' : `${p.expiry - g.day}거래일 남음`);
+  $('positions').innerHTML = P.positionsHtml(acc, marks, left);
+  $('closed').innerHTML = P.closedHtml(acc, (t) => `${t}일째`);
+  $('equityChart').innerHTML = P.equityChart(g.equity.map(([d, v]) => [`${d}일째`, v]), $('equityChart').clientWidth);
+  renderReveal();
+  renderHistory();
+}
+
+/** 지금 기준 + 호가창 + 전망별 후보. */
+function renderOrder() {
+  const rows = data.chain, move = data.expectedMovePct;
+  g.view = g.view || 'ALL';
+  const week = data.chart.length > 5 ? data.chart[data.chart.length - 1] / data.chart[data.chart.length - 6] - 1 : null;
+  $('criteria').innerHTML = P.tilesHtml([
+    { label: `${data.expirations.find((e) => e.day === g.expiry)?.daysLeft}거래일 뒤 만기까지 예상 변동폭${term('expectedMove')}`, value: move == null ? '–' : `±${P.pct(move)}`, sub: move == null ? '' : `±$${(move * data.spot).toFixed(2)}` },
+    { label: `ATM IV${term('iv')}`, value: P.pct(data.atmIv), sub: '최근 20일 실제 변동성과 같음(이론가)' },
+    { label: '지난 5거래일 움직임', value: `<span class="${P.tone(week)}">${P.signedPct(week)}</span>`, sub: '' },
+  ]) + '<p class="faint small">빨리감기는 날짜를 가려서 실적·경제지표 일정은 보이지 않습니다.</p>';
+  ideas = P.rate(P.candidates(rows), rows, data.spot, move);
+  $('chain').innerHTML = rows.length ? P.chainHtml(rows, data.spot) : '';
+  $('views').innerHTML = P.viewPills(g.view);
+  $('cards').innerHTML = P.ideaCards(ideas, data.spot, move, g.view);
+  renderTicket();
+}
+
+const ticketMarks = () => P.marksFor(data.chain, ticket.legs);
+
+function renderTicket() {
+  const m = ticketMarks();
+  $('ticket').innerHTML = data.finished ? '<p class="muted">게임이 끝났습니다.</p>'
+    : m.some((x) => !x) ? '<p class="muted">담은 행사가가 오늘 체인에 없습니다. 다시 담아 주세요.</p>'
+    : P.ticketHtml(g.acc, ticket, m, null);
+}
+
+function priceChart(values, startIndex) {
+  const w = Math.max(320, $('priceChart').clientWidth || 640), h = 200, padR = 56, padB = 8, top = 8;
+  let y0 = Math.min(...values), y1 = Math.max(...values);
+  const pad = (y1 - y0) * 0.06 || 1;
+  y0 -= pad; y1 += pad;
+  const X = (i) => 4 + (i / Math.max(1, values.length - 1)) * (w - padR - 4);
+  const Y = (y) => top + (1 - (y - y0) / (y1 - y0)) * (h - top - padB);
+  const path = values.map((v, i) => (i ? 'L' : 'M') + X(i).toFixed(1) + ',' + Y(v).toFixed(1)).join('');
+  const last = values[values.length - 1];
+  const color = last >= 100 ? 'var(--up)' : 'var(--down)';
+  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="가상 종목 주가">
+    <line x1="${X(startIndex)}" x2="${X(startIndex)}" y1="${top}" y2="${h - padB}" stroke="var(--faint)" stroke-dasharray="4 4"/>
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="2"/>
+    <circle cx="${X(values.length - 1)}" cy="${Y(last)}" r="4" fill="${color}"/>
+    <text x="${w - padR + 6}" y="${Y(last) + 4}" style="fill:var(--text)">${last.toFixed(2)}</text>
+  </svg>`;
+}
+
+function renderReveal() {
+  const r = data.reveal;
+  $('revealPanel').hidden = !r;
+  if (!r) return;
+  const final = g.equity[g.equity.length - 1][1];
+  $('revealPanel').innerHTML = `<h2>결과 공개</h2>
+    <p style="font-size:20px;margin:0 0 8px">이 종목은 <strong>${P.esc(r.symbol)}</strong>, 기간은 <strong>${r.startDate} ~ ${r.endDate}</strong>였습니다.</p>
+    <p class="muted" style="margin:0 0 12px">실제 주가 $${r.startPrice.toFixed(2)} → $${r.endPrice.toFixed(2)} (${P.signedPct(r.endPrice / r.startPrice - 1)}) · 내 수익률 <strong class="${P.tone(final - P.START_CASH)}">${P.signedPct(final / P.START_CASH - 1, 2)}</strong></p>
+    <button class="primary" id="again">새 게임</button>`;
+  $('again').addEventListener('click', newGame);
+}
+
+function renderHistory() {
+  const list = P.load(HISTORY) || [];
+  if (!list.length) { $('history').innerHTML = '<p class="muted">아직 끝낸 게임이 없습니다.</p>'; return; }
+  const avg = list.reduce((s, x) => s + x.returnPct, 0) / list.length;
+  const wins = list.filter((x) => x.returnPct > 0).length;
+  $('history').innerHTML = `<p class="muted">${list.length}판 · 평균 수익률 <strong class="${P.tone(avg)}">${P.signedPct(avg, 2)}</strong> · 이긴 판 ${wins}개</p>
+    <div class="scroll"><table><thead><tr><th class="left">종목</th><th>기간</th><th>거래 수</th><th>수익률</th></tr></thead><tbody>
+    ${list.map((x) => `<tr><td class="left">${P.esc(x.symbol)}</td><td>${x.startDate} ~ ${x.endDate}</td><td>${x.trades}</td><td class="${P.tone(x.returnPct)}">${P.signedPct(x.returnPct, 2)}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+
+// ── 이벤트 (위임 한 곳) ──
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  try {
+    if (t.id === 'next1') await advance(1);
+    else if (t.id === 'next5') await advance(5);
+    else if (t.id === 'nextEnd') await advance(data.totalDays);
+    else if (t.id === 'restart') {
+      const msg = data?.finished ? '새 게임을 시작할까요?' : '지금 판을 버리고 새 게임을 시작할까요? 이번 판의 포지션과 기록은 사라지고 되돌릴 수 없습니다.';
+      if (await P.ask(msg, '새 게임 시작')) await newGame();
+    }
+    else if (t.dataset.expiry) { g.expiry = Number(t.dataset.expiry); ticket = { legs: [], sets: 1, label: '', kind: null }; save(); await refresh(); }
+    else if (t.dataset.view) { g.view = t.dataset.view; renderOrder(); }
+    else if (P.ticketClick(t, ticket, ideas)) renderTicket();
+    else if (t.id === 'submit') {
+      const error = P.open(g.acc, { symbol: null, expiry: g.expiry, label: ticket.label, kind: ticket.kind, legs: ticket.legs, sets: ticket.sets, marks: ticketMarks(), t: g.day, entry: { spot: data.spot, iv: data.atmIv, move: data.expectedMovePct } });
+      if (error) { await P.notice(error); return; }
+      ticket = { legs: [], sets: 1, label: '', kind: null };
+      save();
+      marks = await markAll();
+      render();
+    } else if (t.dataset.close) {
+      P.close(g.acc, t.dataset.close, marks[t.dataset.close], g.day, exitInfo());
+      save();
+      marks = await markAll();
+      render();
+    }
+  } catch (err) { await P.notice(err.message); }
+});
+document.addEventListener('change', (e) => {
+  if (e.target.id === 'sets') { ticket.sets = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))); renderTicket(); }
+});
+
+(async () => {
+  g = P.load(KEY);
+  try { if (g?.game) await refresh(); else await newGame(); } catch (err) {
+    document.querySelector('main').innerHTML = `<div class="panel">연습 데이터를 불러오지 못했습니다: ${P.esc(err.message)} <button class="primary" onclick="localStorage.removeItem('${KEY}');location.reload()">새로 시작</button></div>`;
+  }
+})();
+</script>
+</body>
+</html>

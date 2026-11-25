@@ -17,6 +17,7 @@ class VolatilityMetricsTest {
 
     @Test
     fun `실현 vs 예상`() {
+        assertThat(VolatilityMetrics.dailyMove(0.504)).isCloseTo(0.03175, within(1e-4))
         val r = RealizedVsExpected.of(previousClose = 150.0, current = 147.0, expectedPct = 0.04)
         assertThat(r.realizedPct).isCloseTo(-0.02, within(1e-9))
         assertThat(r.ratio).isCloseTo(0.5, within(1e-9))

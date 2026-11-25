@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>실시간 모의투자</title>
+<link rel="stylesheet" href="/app.css">
+<link rel="stylesheet" href="/paper.css">
+</head>
+<body>
+<!-- 실시간 모의투자: 지금 이론가로 진입하고, 다가오는 경제지표·실적을 보며 방향과 변동성을 함께 예측한다.
+     계좌는 끝없이 이어지고(localStorage 'paper.account'), 일별·월별 수익률은 지난 거래일 장 마감 값을 서버에서 다시 계산해 만든다. -->
+<div class="approx-banner">모의 거래입니다. 옵션 호가는 <strong>이론가(근사값)</strong>이고 실제 호가가 아닙니다. 주가도 해외 가상자산 거래소의 주식 추종 무기한 선물 참고시세로, 실제 주가와 다를 수 있습니다.<span class="term-help" data-term="approximate" tabindex="0">?</span></div>
+<header class="bar">
+  <strong>모의투자</strong>
+  <nav class="modes" aria-label="모의투자 화면"><a href="/paper.html" aria-current="page">실시간 모의투자</a><a href="/drill.html">빨리감기 연습</a></nav>
+  <span class="grow"></span>
+  <a href="/">← 대시보드</a>
+</header>
+<!-- 이 화면 안의 상태: 종목 선택, 정규장 여부 -->
+<div class="subbar">
+  <select id="symbol" aria-label="종목"></select>
+  <span class="muted" id="status"></span>
+</div>
+
+<main>
+  <section class="panel">
+    <div class="stats" id="stats"></div>
+    <div class="actions" style="margin-top:12px"><span class="muted small" id="since"></span></div>
+  </section>
+  <section class="panel"><h2>들고 있는 포지션 (10초마다 다시 계산)</h2><div id="positions"></div></section>
+
+  <!-- 주가·봉 차트: quotechart.js가 채운다(대시보드와 같은 부품) -->
+  <section class="panel"><div id="quote"></div></section>
+
+  <section class="panel">
+    <h2>만기</h2>
+    <div class="pills" id="expiries"></div>
+    <h2 style="margin-top:16px">지금 기준 (전략을 고를 때 볼 숫자)</h2>
+    <div class="criteria-grid">
+      <div><div id="criteria"></div><div id="zones"></div></div>
+      <div><div id="events"></div></div>
+    </div>
+    <p class="faint small">옵션 값이 최근 20일 실제 변동성으로 정한 이론가라 IV ÷ HV는 늘 1 근처이고, 실적 전 IV 상승도 반영돼 있지 않습니다.</p>
+  </section>
+    <section class="panel" style="margin-top:16px">
+      <div class="grid2">
+        <div><h2>호가창 · 가격을 누르면 사기로 담깁니다 (팔기는 주문표에서 "매도로")</h2><div id="chain"></div></div>
+        <div class="sticky"><h2>주문표</h2><div id="ticket"></div></div>
+      </div>
+    </section>
+    <section class="panel" style="margin-top:16px">
+      <h2>어떻게 될 것 같나요? 전망을 고르면 후보를 보여 드려요 (고르는 건 직접)</h2>
+      <div class="pills" id="views"></div>
+      <div class="cards" id="cards"></div>
+      <p class="faint small">카드의 숫자는 이론가 기준 참고값이고 투자 조언이 아닙니다.</p>
+    </section>
+
+  <section class="panel"><h2>평가액<span class="term-help" data-term="equity" tabindex="0">?</span></h2><div class="chart" id="equityChart"></div></section>
+  <section class="grid2">
+    <div class="panel"><h2>일별 수익률</h2><div id="daily"></div></div>
+    <div class="panel"><h2>월별 수익률</h2><div id="monthly"></div></div>
+  </section>
+  <section class="panel"><h2>끝난 거래</h2><div id="closed"></div></section>
+</main>
+<footer>주문은 미국 정규장 시간(한국 시간 23:30~06:00, 서머타임 22:30~05:00)에만 됩니다. 체결은 이론가 한 가격으로 하고 수수료는 없다고 봅니다. 만기에 내가격이면 차액만 현금 정산합니다. 지난 날의 평가액은 일봉 종가로 다시 계산한 값입니다. 계좌는 이 브라우저에만 저장됩니다.</footer>
+
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<script src="/glossary.js"></script>
+<script src="/paper.js"></script>
+<script src="/quotechart.js"></script>
+<script>
+const P = Paper;
+const $ = (id) => document.getElementById(id);
+const KEY = 'paper.account', POLL_MS = 10000, HISTORY_MS = 300000;
+let acc = P.load(KEY) || P.newAccount(new Date().toISOString());
+let d = null;            // /api/dashboard 응답(선택한 종목·만기)
+let state = { symbol: 'NVDA', expiry: null, view: 'ALL' };
+let ideas = []; // 지금 만기의 전략 후보
+let marks = {};          // 포지션 id → 다리별 지금 값
+let spots = {};          // 종목 → 지금 가격
+let marketOpen = false;
+let history = [];        // [[날짜, 장 마감 평가액]] (어제까지)
+let ticket = { legs: [], sets: 1, label: '', kind: null };
+let quote = null;         // 주가·봉 차트 부품(quotechart.js)
+
+const api = async (url, body) => {
+  const res = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || res.statusText);
+  return json;
+};
+const save = () => P.save(KEY, acc);
+const today = () => P.etDate(new Date().toISOString());
+const daysLeft = (date) => Math.round((new Date(date + 'T12:00:00') - new Date(today() + 'T12:00:00')) / 86400000);
+const md = (date) => date.slice(5).replace('-', '/') + '(' + '일월화수목금토'[new Date(date + 'T12:00:00').getDay()] + ')';
+
+async function loadDashboard() {
+  d = await api(`/api/dashboard?symbol=${state.symbol}${state.expiry ? '&expiry=' + state.expiry : ''}`);
+  state.expiry = d.expiry;
+  marketOpen = d.marketOpen;
+  renderOrder();
+}
+
+/** 들고 있는 포지션의 지금 값. 만기가 지난 포지션은 여기서 정산한다. */
+async function loadMarks() {
+  const legs = acc.positions.flatMap((p) => p.legs.map((l) => ({ symbol: p.symbol, type: l.type, strike: l.strike, expiry: p.expiry })));
+  if (!legs.length) { marks = {}; renderAccount(); return; }
+  const res = await api('/api/paper/marks', { legs });
+  marketOpen = res.marketOpen;
+  spots = res.spots;
+  marks = {};
+  let i = 0;
+  acc.positions.forEach((p) => { marks[p.id] = p.legs.map(() => res.marks[i++]); });
+  let settled = false;
+  for (const p of [...acc.positions]) {
+    const m = marks[p.id];
+    if (m.every((x) => x.settled)) { P.close(acc, p.id, m, m[0].settledAt, { spot: m[0].settlementPrice }, true); delete marks[p.id]; settled = true; }
+  }
+  if (settled) { save(); loadHistory(); }
+  renderAccount();
+}
+
+/** 지난 거래일마다: 현금(그날 장 마감까지의 거래 반영) + 그날 들고 있던 포지션의 장 마감 값. */
+async function loadHistory() {
+  const all = [...acc.positions, ...acc.closed];
+  const legs = [], owner = [];
+  all.forEach((p) => p.legs.forEach((l, j) => {
+    legs.push({ symbol: p.symbol, type: l.type, strike: l.strike, expiry: p.expiry, from: P.etDate(p.openedAt), to: p.closedAt ? P.etDate(p.closedAt) : today() });
+    owner.push([p, j]);
+  }));
+  const res = await api('/api/paper/daily-marks', { from: P.etDate(acc.createdAt), legs });
+  const mid = new Map(); // "포지션id|다리|날짜" → 값
+  res.legs.forEach((list, i) => list.forEach((m) => mid.set(`${owner[i][0].id}|${owner[i][1]}|${m.date}`, m.mid)));
+  history = res.days.map((day) => {
+    const close = new Date(day.closeAt);
+    const cash = P.START_CASH + acc.trades.filter((t) => new Date(t.t) <= close).reduce((s, t) => s + t.cash, 0);
+    const held = all.filter((p) => new Date(p.openedAt) <= close && (!p.closedAt || new Date(p.closedAt) > close));
+    const value = held.reduce((s, p) => s + p.legs.reduce((v, l, j) => v + l.qty * (mid.get(`${p.id}|${j}|${day.date}`) ?? 0), 0) * P.MULT * p.sets, 0);
+    return [day.date, cash + value];
+  });
+  renderReturns();
+}
+
+// ── 그리기 ──
+function renderAccount() {
+  const eq = P.equity(acc, marks);
+  const prev = history.length ? history[history.length - 1][1] : P.START_CASH;
+  $('stats').innerHTML = [
+    ['평가액' + term('equity'), P.money(eq)],
+    ['오늘 손익', `<span class="${P.tone(eq - prev)}">${P.signedMoney(eq - prev)} <span class="small">(${P.signedPct(eq / prev - 1, 2)})</span></span>`],
+    ['총 수익률', `<span class="${P.tone(eq - P.START_CASH)}">${P.signedPct(eq / P.START_CASH - 1, 2)}</span>`],
+    ['현금', P.money(acc.cash)],
+    ['매수 가능' + term('buyingPower'), P.money(P.buyingPower(acc))],
+    ['묶인 증거금' + term('reserve'), P.money(P.reserved(acc))],
+  ].map(([k, v]) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('');
+  $('since').textContent = `${P.etDate(acc.createdAt)} 시작 · 시작 자금 ${P.money(P.START_CASH)}`;
+  $('status').textContent = marketOpen ? '● 정규장 열림' : '정규장 닫힘 (주문 불가)';
+  $('positions').innerHTML = P.positionsHtml(acc, marks, (p) => `${md(p.expiry)} · ${daysLeft(p.expiry)}일 남음`);
+  $('closed').innerHTML = P.closedHtml(acc, (t) => P.etDate(t).slice(5));
+  if (d) renderTicket();
+  renderReturns();
+}
+
+/** 다가오는 일정(실적 + 경제지표), 가까운 순. 시각은 한국 시간. */
+function upcomingEvents() {
+  // timeKst는 "12-10 04:00" 꼴(한국 날짜·시각). 미국 발표일과 한국 날짜가 다를 수 있어 한국 날짜로 보여 준다
+  const list = d.macro.upcoming.map((x) => {
+    const [kDate, kTime] = x.timeKst.split(' ');
+    return { days: x.daysUntil, dateLabel: kDate.replace('-', '/'), when: `${kTime} 한국`, label: x.label, kind: 'MACRO', inside: x.beforeExpiry };
+  });
+  const e = d.earnings.next;
+  if (e) {
+    const when = e.timing === 'BEFORE_OPEN' ? '장 시작 전' : e.timing === 'AFTER_CLOSE' ? '장 마감 후' : '시각 미정';
+    list.push({ days: d.earnings.daysUntil ?? daysLeft(e.date), dateLabel: md(e.date), when, label: `${d.symbol} 실적발표`, kind: 'EARNINGS', inside: d.earnings.beforeExpiry });
+  }
+  return list.sort((a, b) => a.days - b.days).slice(0, 8);
+}
+
+function renderOrder() {
+  quote.update(d);
+  $('expiries').innerHTML = d.expirations.slice(0, 12).map((e) => `<button data-expiry="${e}" aria-pressed="${e === d.expiry}">${md(e)}</button>`).join('');
+  const v = d.volatility, move = d.expectedMove?.pct, expiryLabel = md(d.expiry);
+  $('criteria').innerHTML = P.criteriaTiles({
+    spot: d.spot, move, moveDollars: d.expectedMove?.dollars, iv: v.atmIvCalc, hv: v.hv20, ivHv: v.ivHvRatio,
+    percentile: v.ivPercentile, realized: d.realizedVsExpected, expiryLabel,
+  });
+  $('zones').innerHTML = P.zonesHtml(d.signals);
+  $('events').innerHTML = P.eventsHtml(upcomingEvents(), expiryLabel);
+  ideas = P.rate(P.candidates(d.chain), d.chain, d.spot, move);
+  $('chain').innerHTML = P.chainHtml(d.chain, d.spot);
+  $('views').innerHTML = P.viewPills(state.view);
+  $('cards').innerHTML = P.ideaCards(ideas, d.spot, move, state.view);
+  renderTicket();
+}
+
+const ticketMarks = () => P.marksFor(d.chain, ticket.legs);
+
+function renderTicket() {
+  if (document.activeElement?.id === 'sets') return; // 10초마다 다시 그릴 때 세트 수 입력 중이면 건드리지 않는다
+  const m = ticketMarks();
+  $('ticket').innerHTML = m.some((x) => !x) ? '<p class="muted">담은 행사가가 지금 체인에 없습니다. 다시 담아 주세요.</p>'
+    : P.ticketHtml(acc, ticket, m, marketOpen ? null : '지금은 미국 정규장이 닫혀 있어 주문할 수 없습니다.');
+}
+
+/** 어제까지의 장 마감 평가액 + 지금 평가액으로 그래프·일별·월별 표. */
+function renderReturns() {
+  const series = [...history, [today() + ' 지금', P.equity(acc, marks)]];
+  $('equityChart').innerHTML = P.equityChart([[P.etDate(acc.createdAt) + ' 시작', P.START_CASH], ...series], $('equityChart').clientWidth);
+  const daily = series.map(([date, v], i) => ({ date, v, r: v / (i ? series[i - 1][1] : P.START_CASH) - 1 }));
+  $('daily').innerHTML = `<div class="scroll"><table><thead><tr><th class="left">날짜</th><th>평가액</th><th>수익률</th></tr></thead><tbody>
+    ${daily.slice(-30).reverse().map((x) => `<tr><td class="left">${x.date}</td><td>${P.money(x.v)}</td><td class="${P.tone(x.r)}">${P.signedPct(x.r, 2)}</td></tr>`).join('')}</tbody></table></div>`;
+  const months = [];
+  series.forEach(([date, v]) => {
+    const m = date.slice(0, 7);
+    if (months.length && months[months.length - 1].m === m) months[months.length - 1].v = v; else months.push({ m, v });
+  });
+  $('monthly').innerHTML = `<div class="scroll"><table><thead><tr><th class="left">월</th><th>월말 평가액</th><th>수익률</th></tr></thead><tbody>
+    ${months.map((x, i) => ({ ...x, r: x.v / (i ? months[i - 1].v : P.START_CASH) - 1 })).reverse().map((x) => `<tr><td class="left">${x.m}</td><td>${P.money(x.v)}</td><td class="${P.tone(x.r)}">${P.signedPct(x.r, 2)}</td></tr>`).join('')}</tbody></table></div>`;
+}
+
+// ── 이벤트 (위임 한 곳) ──
+const clearTicket = () => { ticket = { legs: [], sets: 1, label: '', kind: null }; };
+document.addEventListener('click', async (e) => {
+  const t = e.target.closest('button');
+  if (!t) return;
+  try {
+    if (t.dataset.expiry) { state.expiry = t.dataset.expiry; clearTicket(); await loadDashboard(); }
+    else if (t.dataset.view) { state.view = t.dataset.view; renderOrder(); }
+    else if (P.ticketClick(t, ticket, ideas)) renderTicket();
+    else if (t.id === 'submit') {
+      await loadDashboard(); // 체결 직전 호가로 다시
+      if (!marketOpen) { await P.notice('지금은 미국 정규장이 닫혀 있어 주문할 수 없습니다.'); return; }
+      const error = P.open(acc, { symbol: d.symbol, expiry: d.expiry, label: ticket.label, kind: ticket.kind, legs: ticket.legs, sets: ticket.sets, marks: ticketMarks(), t: new Date().toISOString(), entry: { spot: d.spot, iv: d.volatility.atmIvCalc, move: d.expectedMove?.pct } });
+      if (error) { await P.notice(error); return; }
+      clearTicket();
+      save();
+      await loadMarks();
+      renderTicket();
+    } else if (t.dataset.close) {
+      await loadMarks();
+      if (!marketOpen) { await P.notice('지금은 미국 정규장이 닫혀 있어 청산할 수 없습니다.'); return; }
+      const pos = acc.positions.find((p) => p.id === t.dataset.close);
+      if (!pos || !(await P.ask(`${pos.label}을(를) 지금 가격으로 청산할까요?`, '청산'))) return;
+      P.close(acc, pos.id, marks[pos.id], new Date().toISOString(), { spot: spots[pos.symbol], iv: pos.symbol === d?.symbol ? d.volatility.atmIvCalc : null });
+      save();
+      await loadMarks();
+    }
+  } catch (err) { await P.notice(err.message); }
+});
+document.addEventListener('change', async (e) => {
+  if (e.target.id === 'sets') { ticket.sets = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1))); renderTicket(); }
+  if (e.target.id === 'symbol') { state = { ...state, symbol: e.target.value, expiry: null }; clearTicket(); quote.setSymbol(state.symbol); await loadDashboard().catch((err) => P.notice(err.message)); }
+});
+
+(async () => {
+  save();
+  const w = await api('/api/watchlist');
+  state.symbol = w.default;
+  $('symbol').innerHTML = w.symbols.map((s) => `<option ${s === state.symbol ? 'selected' : ''}>${s}</option>`).join('');
+  quote = QuoteChart.mount($('quote'));
+  quote.setSymbol(state.symbol);
+  await Promise.all([loadDashboard(), loadMarks(), loadHistory()]).catch((err) => { $('status').textContent = '불러오기 실패: ' + err.message; });
+  setInterval(() => { loadDashboard().catch(() => {}); loadMarks().catch(() => {}); }, POLL_MS);
+  setInterval(() => loadHistory().catch(() => {}), HISTORY_MS);
+})();
+</script>
+</body>
+</html>

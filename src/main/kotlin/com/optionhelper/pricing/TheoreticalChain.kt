@@ -53,23 +53,44 @@ object TheoreticalChain {
         rate: Double,
         atmIv: Double,
     ): OptionChain {
-        val quotes =
-            strikes.flatMap { k ->
-                val iv = strikeIv(atmIv, spot, k, years)
-                OptionType.entries.map { type ->
-                    val theo = maxOf(BlackScholes.price(type, spot, k, years, rate, iv), BlackScholes.intrinsic(type, spot, k))
-                    val half = maxOf(MIN_SPREAD, theo * SPREAD_RATIO) / 2
-                    OptionQuote(
-                        type = type,
-                        strike = k,
-                        bid = round2(maxOf(0.0, theo - half)),
-                        ask = round2(theo + half),
-                        impliedVolatility = iv,
-                        delta = BlackScholes.greeks(type, spot, k, years, rate, iv).delta,
-                    )
-                }
-            }
+        val quotes = strikes.flatMap { k -> OptionType.entries.map { type -> quote(type, k, spot, years, rate, atmIv) } }
         return OptionChain(symbol, expiry, quotes)
+    }
+
+    /** 행사가 하나의 이론가 호가. 체인에 없는 행사가(예: 모의투자 보유 옵션)도 같은 식으로 값을 낸다. */
+    fun quote(
+        type: OptionType,
+        strike: Double,
+        spot: Double,
+        years: Double,
+        rate: Double,
+        atmIv: Double,
+    ): OptionQuote {
+        // 만기 시각이면 내재가치 그대로(호가 간격 없이)
+        if (years <= 0.0) {
+            val value = round2(BlackScholes.intrinsic(type, spot, strike))
+            val itm = value > 0
+            val delta =
+                if (!itm) {
+                    0.0
+                } else if (type == OptionType.CALL) {
+                    1.0
+                } else {
+                    -1.0
+                }
+            return OptionQuote(type, strike, value, value, null, delta)
+        }
+        val iv = strikeIv(atmIv, spot, strike, years)
+        val theo = maxOf(BlackScholes.price(type, spot, strike, years, rate, iv), BlackScholes.intrinsic(type, spot, strike))
+        val half = maxOf(MIN_SPREAD, theo * SPREAD_RATIO) / 2
+        return OptionQuote(
+            type = type,
+            strike = strike,
+            bid = round2(maxOf(0.0, theo - half)),
+            ask = round2(theo + half),
+            impliedVolatility = iv,
+            delta = BlackScholes.greeks(type, spot, strike, years, rate, iv).delta,
+        )
     }
 
     private fun round2(value: Double) = round(value * 100) / 100
