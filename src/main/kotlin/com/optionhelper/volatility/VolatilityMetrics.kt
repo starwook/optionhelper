@@ -66,6 +66,31 @@ data class IvRange(
     }
 }
 
+/**
+ * 시장 변동성(연율 %)이 높은 편인지. 공식 기준은 없고 VIX에서 흔히 쓰는 관례 구간을 쓴다
+ * (15 아래 평온, 15~20 보통, 20~30 불안, 30 이상 공포). 실현변동성은 보통 VIX보다 몇 포인트 낮게 나온다.
+ */
+enum class VolatilityLevel(val label: String) {
+    CALM("낮음"),
+    NORMAL("보통"),
+    ELEVATED("높음"),
+    HIGH("매우 높음"),
+    ;
+
+    companion object {
+        fun of(percent: Double): VolatilityLevel =
+            when {
+                percent < 15 -> CALM
+                percent < 20 -> NORMAL
+                percent < 30 -> ELEVATED
+                else -> HIGH
+            }
+
+        /** 차트에 그을 구간 경계(%). */
+        val BOUNDARIES = listOf(15.0, 20.0, 30.0)
+    }
+}
+
 object VolatilityMetrics {
     const val HV_WINDOW = 20
     private const val TRADING_DAYS_PER_YEAR = 252.0
@@ -83,6 +108,18 @@ object VolatilityMetrics {
         val mean = returns.average()
         val variance = returns.sumOf { (it - mean) * (it - mean) } / (returns.size - 1)
         return sqrt(variance * TRADING_DAYS_PER_YEAR)
+    }
+
+    /** 날마다 그날까지 window일 실현변동성(연율). 앞쪽 window일은 데이터가 모자라 빠진다. */
+    fun <T> historicalVolatilitySeries(
+        items: List<T>,
+        close: (T) -> Double,
+        window: Int = HV_WINDOW,
+    ): List<Pair<T, Double>> {
+        val closes = items.map(close)
+        return (window until items.size).mapNotNull { i ->
+            historicalVolatility(closes.subList(0, i + 1), window)?.let { items[i] to it }
+        }
     }
 
     /** 1보다 크면 옵션이 최근 실제 변동보다 비싸게 거래되는 중. */

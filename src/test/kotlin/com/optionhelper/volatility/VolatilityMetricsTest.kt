@@ -32,6 +32,20 @@ class VolatilityMetricsTest {
     }
 
     @Test
+    fun `실현변동성 추이 - 21번째 날부터 날마다 하나씩`() {
+        val closes = (0..24).map { i -> 100.0 * exp(if (i % 2 == 0) 0.0 else 0.01) }
+        val series = VolatilityMetrics.historicalVolatilitySeries(closes.withIndex().toList(), { it.value })
+        assertThat(series.map { it.first.index }).containsExactly(20, 21, 22, 23, 24)
+        assertThat(series.last().second).isCloseTo(VolatilityMetrics.historicalVolatility(closes)!!, within(1e-12))
+    }
+
+    @Test
+    fun `변동성 구간 - VIX 관례 기준`() {
+        assertThat(listOf(9.0, 15.0, 19.9, 20.0, 29.0, 30.0).map { VolatilityLevel.of(it).label })
+            .containsExactly("낮음", "보통", "보통", "높음", "높음", "매우 높음")
+    }
+
+    @Test
     fun `데이터가 모자라면 실현변동성 없음`() {
         assertThat(VolatilityMetrics.historicalVolatility(listOf(1.0, 2.0))).isNull()
     }

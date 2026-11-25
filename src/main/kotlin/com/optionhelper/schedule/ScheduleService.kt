@@ -10,9 +10,13 @@ import com.optionhelper.macro.MacroCalendarFile
 import com.optionhelper.macro.MacroEvent
 import com.optionhelper.macro.MacroFlashService
 import com.optionhelper.macro.MacroObservation
+import com.optionhelper.marketdata.DailyBar
 import com.optionhelper.marketdata.DailyBarService
+import com.optionhelper.marketdata.MarketDataSource
 import com.optionhelper.pricing.MarketClock
 import com.optionhelper.seasonality.Seasonality
+import com.optionhelper.volatility.VolatilityLevel
+import com.optionhelper.volatility.VolatilityMetrics
 import com.optionhelper.watchlist.WatchedSymbol
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -28,6 +32,7 @@ class ScheduleService(
     private val macroFlash: MacroFlashService,
     private val earnings: EarningsService,
     private val dailyBars: DailyBarService,
+    private val marketData: MarketDataSource,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -67,6 +72,9 @@ class ScheduleService(
                 emptyList()
             }
 
+        // 정확한 VIX는 무료로 보여 줄 수 없어(docs/데이터소스-조사.md 12절) S&P500 추종 선물의 실현변동성을 대신 그린다
+        val spxVolatility = spxVolatility()
+
         return ScheduleResponse(
             today = today,
             macro = macro,
@@ -81,9 +89,35 @@ class ScheduleService(
                 },
             earnings = earningsEvents,
             earningsSource = earnings.sourceName,
+            spxVolatility = spxVolatility,
+            spxVolatilityLevel = spxVolatility.lastOrNull()?.let { VolatilityLevel.of(it.hv20).label },
+            volatilityBoundaries = VolatilityLevel.BOUNDARIES,
             nasdaq = NasdaqSeasonality(NASDAQ_PROXY, NASDAQ_LABEL, Seasonality.monthStats(nasdaqBars), today.monthValue),
             warnings = warnings,
         )
+    }
+
+    /**
+     * S&P500 20일 실현변동성 추이. 일봉은 마감된 날까지만 오므로, 오늘이 거래일이면 지금 가격을 임시 종가로 붙여
+     * 오늘 값도 보여 준다(장중 계속 바뀜).
+     */
+    private fun spxVolatility(): List<VolatilityPoint> {
+        val bars =
+            runCatching { dailyBars.bars(SPX_PROXY) }
+                .onFailure { log.warn("S&P500 일봉 조회 실패: {}", it.message) }
+                .getOrDefault(emptyList())
+        val today = clock.instant().atZone(MarketClock.NEW_YORK).toLocalDate()
+        val withToday =
+            if (bars.isNotEmpty() && bars.last().date.isBefore(today) && MarketClock.isTradingDay(today)) {
+                runCatching { marketData.stockQuote(SPX_PROXY).price }
+                    .onFailure { log.warn("S&P500 현재가 조회 실패: {}", it.message) }
+                    .getOrNull()
+                    ?.let { price -> bars + DailyBar(today, price, price, price, price) } ?: bars
+            } else {
+                bars
+            }
+        return VolatilityMetrics.historicalVolatilitySeries(withToday, { it.close })
+            .map { (bar, hv) -> VolatilityPoint(bar.date, hv * 100, today = bar.date == today && withToday !== bars) }
     }
 
     /** 공식 값이 있으면 공식 값(+속보의 예상치), 없으면 속보. 공식 값이 속보와 다르면 note에 속보 값을 남긴다. */
@@ -123,6 +157,7 @@ class ScheduleService(
         // 나스닥 지수 자체는 시세 소스에 없어 Hyperliquid 나스닥100 추종 선물(xyz:XYZ100)로 대신한다(docs/데이터소스-조사.md 11-3)
         const val NASDAQ_PROXY = "XYZ100"
         const val NASDAQ_LABEL = "나스닥100"
+        const val SPX_PROXY = "SP500"
 
         // 달력에서 이번 달 지난 날짜도 보이게 한 달 전부터
         private const val PAST_DAYS = 31L

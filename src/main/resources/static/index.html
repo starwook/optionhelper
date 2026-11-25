@@ -60,6 +60,10 @@
     .chip { font-size: 10px; padding: 1px 3px; white-space: normal; }
   }
   .heat td { text-align: center; font-size: 14px; }
+  .vol-chart { height: 220px; }
+  #spxVolNow { margin-left: 6px; font-size: 20px; color: var(--event); font-variant-numeric: tabular-nums; }
+  #spxVolChange { font-size: 13px; font-weight: normal; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .vol-note { margin: 6px 0 0; font-size: 12px; color: var(--faint); }
   .heat td.now, .heat th.now { box-shadow: inset 0 0 0 2px var(--text); }
 </style>
 </head>
@@ -86,6 +90,12 @@
       <p class="cal-legend"><span class="chip macro" style="display:inline">노랑</span> 경제지표 · <span class="chip earn" style="display:inline">파랑</span> 관심 종목 실적발표. 날짜·시각은 모두 한국 시간. 지난 경제지표 칸에는 발표 결과를 같이 적습니다. 발표 직후에는 AI가 웹 검색으로 뽑은 <b>⚡속보</b>(점선, 공식 확인 전)를 먼저 보여 주고, 공식 값이 들어오면 바꿉니다. ▲▼는 예상 대비 상회·하회. 칸을 누르면 자세히 보입니다.</p>
       <div class="cal-detail" id="calDetail" hidden></div>
       <p class="error" id="scheduleWarn" hidden></p>
+    </div>
+    <div class="panel">
+      <h2>S&amp;P500 변동성 <span id="spxVolNow"></span> <small id="spxVolChange"></small> <span class="badge" id="spxVolLevel" hidden></span></h2>
+      <div id="spxVolChart" class="vol-chart"></div>
+      <p class="vol-note">최근 20일 실제 변동성(연율) · 해외 가상자산 거래소 S&amp;P500 추종 선물로 계산, VIX 아님 · 점선 15·20·30%</p>
+      <p class="vol-note"><a href="https://edition.cnn.com/markets/fear-and-greed" target="_blank" rel="noopener">CNN 공포·탐욕 지수 보기 ↗</a></p>
     </div>
     <div class="panel"><h2 id="nasdaqTitle">나스닥 월별 수익률</h2><div class="scroll"><table class="heat" id="season"></table></div></div>
   </section>
@@ -134,6 +144,7 @@ function renderSchedulePage() {
   renderCalendar(s);
   $('nasdaqTitle').textContent = `${s.nasdaq.label} 월별 수익률 · 이번 달 테두리`;
   renderSeason(s.nasdaq.months, s.nasdaq.currentMonth);
+  renderSpxVolatility(s.spxVolatility, s.spxVolatilityLevel, s.volatilityBoundaries);
   $('scheduleWarn').hidden = !s.warnings.length;
   $('scheduleWarn').textContent = s.warnings.join(' ');
   // BLS 약관: 출처·조회일과 아래 영어 고지 문구를 같이 표시해야 한다(docs/데이터소스-조사.md 13절)
@@ -141,6 +152,39 @@ function renderSchedulePage() {
   const flashNote = s.flashModel ? ` ⚡속보와 예상치는 AI(Claude)가 웹 검색으로 뽑은 값(예상치는 언론 보도 기준)으로, 공식 확인 전이며 틀릴 수 있습니다.` : '';
   state.footer.schedule = `실적 일정은 ${s.earningsSource}, 경제지표 일정은 수동 입력(${s.macroCoversUntil ?? '–'}까지).${actualNote}${flashNote} 월별 수익률은 해외 가상자산 거래소의 나스닥100 추종 무기한 선물 일봉(참고시세) 기준. 조회 전용이며 투자 조언이 아닙니다.`;
   paintFooter();
+}
+
+// S&P500 변동성 차트(Lightweight Charts, 맨 위 주가 차트와 같은 라이브러리). 테마가 바뀌면 다시 만든다.
+let spxVolChart = null;
+const VOL_VISIBLE_DAYS = 22;
+
+function renderSpxVolatility(points, level, boundaries) {
+  const last = points[points.length - 1];
+  const prev = points[points.length - 2];
+  $('spxVolNow').textContent = last ? `${last.hv20.toFixed(1)}%` : '';
+  // 전일 대비 변화율(VIX 시세처럼 값 자체의 % 변화)
+  const change = last && prev ? (last.hv20 / prev.hv20 - 1) * 100 : null;
+  $('spxVolChange').textContent = change == null ? '' : `${change >= 0 ? '▲' : '▼'} ${Math.abs(change).toFixed(1)}% 전일 대비${last.today ? ' · 오늘 장중' : ''}`;
+  $('spxVolLevel').hidden = !level;
+  $('spxVolLevel').textContent = level ?? '';
+  if (!points.length) return;
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  spxVolChart?.remove();
+  spxVolChart = LightweightCharts.createChart($('spxVolChart'), {
+    autoSize: true,
+    layout: { background: { color: 'transparent' }, textColor: css('--muted'), fontSize: 12, attributionLogo: true },
+    grid: { vertLines: { visible: false }, horzLines: { color: css('--line') } },
+    rightPriceScale: { borderVisible: false },
+    timeScale: { borderVisible: false, tickMarkFormatter: (t) => (typeof t === 'string' ? `${+t.slice(5, 7)}/${+t.slice(8, 10)}` : `${t.month}/${t.day}`) },
+    localization: { locale: 'ko-KR', priceFormatter: (v) => `${v.toFixed(1)}%` },
+  });
+  const color = css('--event');
+  const series = spxVolChart.addSeries(LightweightCharts.AreaSeries, { lineColor: color, topColor: color + '40', bottomColor: color + '05', lineWidth: 2 });
+  series.setData(points.map((p) => ({ time: p.date, value: p.hv20 })));
+  // 낮음·보통·높음·매우 높음 경계를 옅은 점선으로
+  boundaries.forEach((price) => series.createPriceLine({ price, color: css('--faint'), lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false }));
+  // 기본은 최근 약 1개월(거래일 22일), 옆으로 끌면 이전 기간
+  spxVolChart.timeScale().setVisibleLogicalRange({ from: points.length - VOL_VISIBLE_DAYS, to: points.length - 1 });
 }
 
 /** 월 달력. 한 칸에 그날의 경제지표(노랑)와 실적발표(파랑)를 같이 넣는다. */
@@ -223,6 +267,10 @@ function paintFooter() { $('footer').textContent = state.footer.schedule || ''; 
 
 // ── 시작 ──
 async function init() {
+  window.addEventListener('themechange', () => {
+    const s = state.schedule;
+    if (s) renderSpxVolatility(s.spxVolatility, s.spxVolatilityLevel, s.volatilityBoundaries);
+  });
   $('cal').addEventListener('click', (e) => { const c = e.target.closest('[data-macro]'); if (c) showMacroDetail(Number(c.dataset.macro)); });
   document.querySelector('.cal-head').addEventListener('click', (e) => { const b = e.target.closest('button[data-cal]'); if (b) moveCalendar(Number(b.dataset.cal)); });
   loadSchedule();
