@@ -1,7 +1,9 @@
 package com.optionhelper.marketdata
 
 import com.optionhelper.option.OptionChain
+import com.optionhelper.option.OptionQuote
 import com.optionhelper.pricing.MarketClock
+import com.optionhelper.pricing.OptionType
 import com.optionhelper.pricing.PricingProperties
 import com.optionhelper.pricing.TheoreticalChain
 import com.optionhelper.watchlist.WatchedSymbol
@@ -85,6 +87,18 @@ class ModeledMarketDataSource(
         val strikes = listing.strikeStep(expiry, firstListedDay()).strikes(minStrike, maxStrike)
         val years = maxOf(MarketClock.yearsUntil(clock.instant(), expiry), MIN_YEARS)
         return TheoreticalChain.chain(symbol, expiry, strikes, spot, years, pricing.riskFreeRate, atmIv(symbol))
+    }
+
+    /** 이론가는 아무 행사가나 계산할 수 있어서, 상장 규칙이 바뀌어도(월물 → 주간 구간) 보유 옵션 값이 끊기지 않는다. */
+    override fun quote(
+        symbol: String,
+        type: OptionType,
+        strike: Double,
+        expiry: LocalDate,
+    ): OptionQuote {
+        val spot = underlying.stockQuote(symbol).price
+        val years = maxOf(MarketClock.yearsUntil(clock.instant(), expiry), MIN_YEARS)
+        return TheoreticalChain.quote(type, strike, spot, years, pricing.riskFreeRate, atmIv(symbol))
     }
 
     /** 오늘 장이 끝났으면 다음 날부터(0DTE는 장 마감 전까지만 고를 수 있다). */

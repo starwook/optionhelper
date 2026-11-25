@@ -76,3 +76,24 @@ footer { padding: 12px 20px 16px; font-size: 13px; color: var(--faint); border-t
 
 /* 모든 페이지 맨 위: 옵션 값이 근사값이라는 고정 안내 */
 .approx-banner { background: var(--event-bg); color: var(--event); font-size: 13px; padding: 6px 16px; text-align: center; }
+
+/* 주가·봉 차트 부품(quotechart.js): 대시보드와 실시간 모의투자가 같이 쓴다 */
+.quote { max-width: 1280px; width: 100%; margin: 0 auto; padding: 16px 20px 4px; }
+.quote-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; }
+.quote-sym { font-size: 16px; font-weight: 700; color: var(--muted); }
+.quote-price { font-size: 34px; font-weight: 800; line-height: 1.1; }
+.quote-chg { font-size: 17px; font-weight: 700; }
+.quote-ext { font-size: 15px; font-weight: 400; color: var(--muted); }
+.ranges { display: flex; gap: 4px; }
+.ranges { flex-wrap: wrap; }
+.ranges button { background: none; border: 1px solid transparent; border-radius: 8px; padding: 3px 10px; color: var(--muted); cursor: pointer; font-size: 14px; }
+.ranges button[aria-pressed="true"] { border-color: var(--line); background: var(--raised); color: var(--text); font-weight: 700; }
+.ranges .sep { width: 1px; margin: 4px 6px; background: var(--line); }
+/* 봉 차트: 그림은 Lightweight Charts가 .quote-canvas 안에 그린다. 범례(시·고·저·종)와 안내 문구는 그 위에 겹친다 */
+.quote-chart { position: relative; height: 380px; margin-top: 8px; }
+.quote-canvas { height: 100%; }
+.quote-legend { position: absolute; top: 4px; left: 8px; z-index: 3; font-size: 13px; color: var(--muted); pointer-events: none; }
+.quote-legend b { color: var(--text); font-weight: 600; margin-right: 8px; }
+.chart-msg { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--bg); }
+.quote-note { margin: 0; font-size: 12px; color: var(--faint); }
+

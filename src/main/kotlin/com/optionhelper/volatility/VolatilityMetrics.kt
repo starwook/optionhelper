@@ -27,7 +27,7 @@ data class ExpectedMove(
     }
 }
 
-/** 전일 종가 대비 실제로 움직인 것과 예상 변동폭 비교. ratio가 1이면 예상만큼 이미 움직임. */
+/** 전일 종가 대비 실제로 움직인 것과 하루 예상 변동폭([VolatilityMetrics.dailyMove]) 비교. ratio가 1이면 하루 예상만큼 이미 움직임. */
 data class RealizedVsExpected(
     val realizedPct: Double,
     val expectedPct: Double,
@@ -69,6 +69,9 @@ data class IvRange(
 object VolatilityMetrics {
     const val HV_WINDOW = 20
     private const val TRADING_DAYS_PER_YEAR = 252.0
+
+    /** 연 변동성(IV·HV)을 하루(1거래일) 1표준편차 변동으로: σ ÷ √252. 예: IV 50% → 하루 ±3.15%. 만기와 상관없는 "오늘 예상" 기준. */
+    fun dailyMove(annualVol: Double): Double = annualVol / sqrt(TRADING_DAYS_PER_YEAR)
 
     /** 종가 목록(오래된 순)의 최근 window일 로그수익률로 연환산 실현변동성. 데이터가 모자라면 null. */
     fun historicalVolatility(

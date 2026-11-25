@@ -103,12 +103,12 @@ class DashboardService(
         val today = now.atZone(MarketClock.NEW_YORK).toLocalDate()
         // 전일 종가는 데이터 소스가 정한다(맨 위 실시간 현재가와 같은 값). 소스가 안 주면 일봉 종가
         val previousClose = quote.previousClose ?: previousClose(bars, today)
-        val realized =
-            if (previousClose != null && expectedMove != null) RealizedVsExpected.of(previousClose, spot, expectedMove.pct) else null
-
         val atmIvCalc = average(atm?.call?.ivCalc, atm?.put?.ivCalc)
         val atmIvApi = average(atm?.call?.ivApi, atm?.put?.ivApi)
         val currentIv = atmIvCalc ?: atmIvApi
+        // 오늘 움직임은 만기와 상관없는 하루 예상 변동폭(ATM IV ÷ √252)과 비교한다(만기 예상 변동폭과 비교하면 만기마다 값이 달라진다)
+        val dailyMove = currentIv?.let { VolatilityMetrics.dailyMove(it) }
+        val realized = if (previousClose != null && dailyMove != null) RealizedVsExpected.of(previousClose, spot, dailyMove) else null
         val hv20 = VolatilityMetrics.historicalVolatility(bars.map { it.close })
         val ivHvRatio = if (currentIv != null && hv20 != null && hv20 > 0) VolatilityMetrics.ivHvRatio(currentIv, hv20) else null
         val history = runCatching { ivHistory.atmIvs(symbol, now.minus(Duration.ofDays(365))) }.getOrDefault(emptyList())

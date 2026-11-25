@@ -1,6 +1,8 @@
 package com.optionhelper.marketdata
 
 import com.optionhelper.option.OptionChain
+import com.optionhelper.option.OptionQuote
+import com.optionhelper.pricing.OptionType
 import java.time.Instant
 import java.time.LocalDate
 
@@ -48,6 +50,16 @@ interface MarketDataSource {
         to: Instant,
     ): List<IntradayBar>
 
+    /**
+     * 행사가 하나의 지금 호가(모의투자 보유 옵션 평가용). 기본은 체인에서 찾고, 그 행사가가 지금 상장 규칙에 없으면 null.
+     */
+    fun quote(
+        symbol: String,
+        type: OptionType,
+        strike: Double,
+        expiry: LocalDate,
+    ): OptionQuote? = chain(symbol, expiry, strike - STRIKE_TOLERANCE, strike + STRIKE_TOLERANCE).quote(type, strike)
+
     /** [dailyImpliedVolatility]가 무엇을 잰 값인지. IV 히스토리 화면에 기준으로 표시한다. */
     val historicalIvLabel: String get() = "데이터 소스의 30일 IV"
 
@@ -59,6 +71,10 @@ interface MarketDataSource {
         symbol: String,
         from: LocalDate,
     ): List<DailyIv> = emptyList()
+
+    private companion object {
+        const val STRIKE_TOLERANCE = 0.001
+    }
 }
 
 data class StockQuote(
