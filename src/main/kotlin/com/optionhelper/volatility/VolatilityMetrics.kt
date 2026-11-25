@@ -99,16 +99,4 @@ object VolatilityMetrics {
         if (history.isEmpty()) return null
         return history.count { it < current }.toDouble() / history.size
     }
-
-    /** 가까운 만기 IV ÷ 다음 만기 IV. 1보다 크면 단기 이벤트(실적 등) 프리미엄이 붙은 상태(역전). */
-    fun termStructureRatio(
-        nearIv: Double,
-        nextIv: Double,
-    ): Double = nearIv / nextIv
-
-    /** 같은 거리 OTM 풋 IV − 콜 IV. +면 하락 대비 수요가 큼. */
-    fun skew(
-        otmPutIv: Double,
-        otmCallIv: Double,
-    ): Double = otmPutIv - otmCallIv
 }

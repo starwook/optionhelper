@@ -3,7 +3,6 @@ package com.optionhelper.dashboard
 import com.optionhelper.earnings.EarningsEvent
 import com.optionhelper.earnings.EarningsMoveStats
 import com.optionhelper.marketdata.SessionClose
-import com.optionhelper.option.IvPoint
 import com.optionhelper.pricing.MarketSession
 import com.optionhelper.pricing.OptionType
 import com.optionhelper.signal.StrategySignal
@@ -17,7 +16,7 @@ import com.optionhelper.volatility.RealizedVsExpected
 import java.time.Instant
 import java.time.LocalDate
 
-/** 화면 한 장에 필요한 모든 값. 금액은 주당(계약 1개 = × 100), 비율·%는 소수. */
+/** 실시간 모의투자 화면이 쓰는 종목·만기 하나의 값. 금액은 주당(계약 1개 = × 100), 비율·%는 소수. */
 data class DashboardResponse(
     val symbol: String,
     val feed: FeedView,
@@ -47,11 +46,9 @@ data class DashboardResponse(
     val realizedVsExpected: RealizedVsExpected?,
     val volatility: VolatilityView,
     val chain: List<ChainRow>,
-    val strategies: List<StrategyView>,
     val earnings: EarningsView,
     val macro: MacroView,
     val signals: List<StrategySignal>,
-    val ivHistory: List<IvPoint>,
     val warnings: List<String>,
 )
 
@@ -78,14 +75,9 @@ data class VolatilityView(
     val hv20: Double?,
     val ivHvRatio: Double?,
     val ivPercentile: Double?,
-    val ivSamples: Int,
-    val nextExpiry: LocalDate?,
-    val nextExpiryIv: Double?,
-    val termStructureRatio: Double?,
-    // 같은 거리(2칸) OTM 풋 IV − 콜 IV
-    val skew: Double?,
 )
 
+/** 전략 하나의 화면용 값(빨리감기 연습·복기 화면이 쓴다). */
 data class StrategyView(
     val kind: String,
     val label: String,

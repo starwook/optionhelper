@@ -3,118 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>옵션 판단</title>
+<title>시장</title>
+<!-- 대시보드는 모의투자로 합쳤다(2026-11-26). 이 페이지는 시장(#schedule)만 보여 주고, 그 밖의 주소(/, /#dashboard)는 모의투자로 보낸다 -->
+<script>if (location.hash !== '#schedule') location.replace('/paper.html');</script>
 <link rel="stylesheet" href="/app.css">
 <script src="/theme.js"></script>
 <style>
-  /* 화면 구조: 상단 바(공통 메뉴 [대시보드 | 일정 | 모의투자] + 대시보드일 때만 종목 선택)
-     대시보드 = 주가·차트(모든 탭 공통) → 탭 3개(오늘 판단 / 전략 / 옵션 체인) → 탭 내용
-     일정   = 종목과 상관없는 시장 달력(경제지표 + 관심 종목 실적) + 나스닥 월별 수익률 */
+  /* 화면 구조: 상단 바(공통 메뉴 [모의투자 | 시장]) → 시장 달력(경제지표 + 관심 종목 실적) + 나스닥 월별 수익률 */
   main { padding: 20px; max-width: 1280px; width: 100%; margin: 0 auto; }
   @media (max-width: 700px) { main { padding: 16px; } }
 
   /* ── 상단 바 ── */
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
-  .bar select {
-    appearance: none; background: var(--raised) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23a6afc0' stroke-width='2'/%3E%3C/svg%3E") no-repeat right 12px center;
-    border: 1px solid var(--line); border-radius: 8px; padding: 6px 34px 6px 12px; font-size: 17px; font-weight: 800; cursor: pointer;
-  }
-  .bar select option { background: var(--surface); color: var(--text); }
-  .status { font-size: 14px; color: var(--muted); }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--faint); margin-right: 6px; }
-  .dot.live { background: var(--up); }
-  .feed-warn { color: var(--event); }
   .error { color: var(--down); font-size: 14px; }
-  .grow { flex: 1; }
-
-  .bar .divider { width: 1px; height: 22px; background: var(--line); }
-
-  /* ── 탭 ── */
-  nav.tabs { display: flex; align-items: center; gap: 2px; padding: 0 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .tabs button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 12px 16px; color: var(--muted); cursor: pointer; font-size: 16px; white-space: nowrap; }
-  .tabs button[aria-selected="true"] { color: var(--text); border-bottom-color: var(--text); font-weight: 700; }
-  .tabs a { font-size: 14px; color: var(--muted); padding: 12px 8px; white-space: nowrap; }
-
-  /* ── 만기: 탭 아래 가로 한 줄, 넘치면 옆으로 밀어서 본다 ── */
-  .expiries { position: relative; display: flex; align-items: center; gap: 6px; padding: 10px 20px; border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: thin; }
-  .expiries button { flex: none; display: grid; justify-items: center; gap: 1px; min-width: 64px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--text); cursor: pointer; }
-  .expiries button small { font-size: 12px; color: var(--muted); }
-  .expiries button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
-  .expiries button[aria-pressed="true"] small { color: var(--bg); }
-  .expiries .month { flex: none; font-size: 13px; font-weight: 700; color: var(--muted); padding: 0 4px 0 8px; }
-
   /* ── 공통 블록 ── */
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px 22px; min-width: 0; }
   h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--muted); }
   .stack { display: grid; gap: 16px; }
-  .cols { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; align-items: start; }
-  @media (max-width: 960px) { .cols { grid-template-columns: 1fr; } }
-  .row { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid var(--line); padding: 10px 0; }
-  .row .k { color: var(--muted); }
-  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
-  .tag.in { border-color: transparent; background: var(--event-bg); color: var(--event); }
-
-  details.more > summary { cursor: pointer; color: var(--muted); }
-
-  /* ── 오늘 판단: 예상 변동폭(이 화면에서 가장 먼저 볼 것) ── */
-  .hero-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; }
-  .hero-num { font-size: clamp(44px, 7vw, 68px); font-weight: 800; line-height: 1; letter-spacing: -2px; }
-  .hero-usd { font-size: 24px; font-weight: 600; }
-  .hero-sub { margin: 6px 0 0; color: var(--muted); }
-  .range svg { display: block; margin-top: 18px; }
-  .range text { font-size: 13px; fill: var(--muted); }
-  .range .now text { fill: var(--text); font-weight: 700; }
-  .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
-  @media (max-width: 700px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-  .fact .k { font-size: 14px; color: var(--muted); }
-  .fact .v { font-size: 20px; font-weight: 700; }
-  .fact .s { font-size: 13px; color: var(--muted); }
-
-  /* 결론 카드 3장: 옵션 가격 / 만기 안 일정 / 참고 구간 */
-  .answers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-  @media (max-width: 960px) { .answers { grid-template-columns: 1fr; } }
-  .answer .big { font-size: 28px; font-weight: 800; margin-bottom: 6px; }
-  .answer .verdict { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 12px; }
-  .answer .verdict strong { font-size: 22px; font-weight: 800; }
-  .answer p { margin: 0; color: var(--muted); }
-  .answer ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-  .warn-list { margin: 10px 0 0; padding-left: 18px; color: var(--muted); font-size: 14px; }
-
-  /* ── 전략: 전망 고르기 → 맞는 전략 카드 → 손익 그래프 ── */
-  .views { display: flex; flex-wrap: wrap; gap: 8px; }
-  .views button { background: var(--raised); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; cursor: pointer; color: var(--muted); }
-  .views button[aria-pressed="true"] { background: var(--text); border-color: var(--text); color: var(--bg); font-weight: 700; }
-  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
-  .card { text-align: left; cursor: pointer; color: inherit; font: inherit; }
-  .card[aria-pressed="true"] { border-color: var(--text); box-shadow: inset 0 0 0 1px var(--text); }
-  .plain { font-weight: 800; font-size: 19px; }
-  .sub-line { font-size: 13px; color: var(--muted); white-space: normal; margin: 0; }
-  .condition { margin: 14px 0 0; font-size: 16px; line-height: 1.5; }
-  .terms { margin: 10px 0 0; display: grid; gap: 6px; }
-  .terms div { display: flex; justify-content: space-between; gap: 12px; }
-  .terms dt { color: var(--muted); }
-  .terms dd { margin: 0; font-weight: 700; text-align: right; }
-  .note { margin: 12px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--raised); font-size: 14px; }
-  .note.warn { background: var(--event-bg); color: var(--event); }
-  .order { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
-  .chart svg text { font-size: 12px; fill: var(--muted); }
-
-  /* ── 옵션 체인: 콜(파랑) | 행사가 기둥 | 풋(보라) ── */
-  .legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; color: var(--muted); margin-bottom: 10px; }
-  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
-  .chain th.call-h { color: var(--call); }
-  .chain th.put-h { color: var(--put); }
-  .chain td.strike, .chain th.strike { text-align: center; background: var(--raised); font-weight: 700; color: var(--text); min-width: 72px; }
-  .chain td.c-itm { background: var(--call-bg); }
-  .chain td.p-itm { background: var(--put-bg); }
-  .chain td.mid.c { color: var(--call); font-weight: 700; }
-  .chain td.mid.p { color: var(--put); font-weight: 700; }
-  .chain td.ba { color: var(--muted); }
-  .chain tr.atm td { border-top: 2px solid var(--text); border-bottom: 2px solid var(--text); }
-  .chain tr.atm td.strike { background: var(--text); color: var(--bg); }
-
-  /* ── 화면 전환: body[data-page]로 대시보드 / 일정 중 하나만 보인다 ── */
-  body[data-page="schedule"] .ticker-only, body:not([data-page="schedule"]) .schedule-only { display: none !important; }
 
   /* ── 일정: 월 달력(한 칸에 그날 경제지표·실적을 같이) ── */
   .cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
@@ -161,90 +66,15 @@
 <body>
 <div class="approx-banner">옵션 호가·IV·그릭스는 모두 <strong>이론가(근사값)</strong>이고 실제 호가가 아닙니다. 주가도 해외 가상자산 거래소의 주식 추종 무기한 선물 참고시세로, 실제 주가·호가가 아니며 실제 주가와 다를 수 있습니다.<span class="term-help" data-term="approximate" tabindex="0">?</span></div>
 <div class="bar">
-  <!-- 공통 메뉴: 대시보드·일정은 이 페이지 안 전환(#해시), 모의투자는 별도 페이지 -->
-  <nav class="mainnav" id="pages" aria-label="화면">
-    <a href="#dashboard" data-page="ticker">대시보드</a>
-    <a href="#schedule" data-page="schedule">일정</a>
+  <nav class="mainnav" aria-label="화면">
     <a href="/paper.html">모의투자</a>
+    <a href="#schedule" aria-current="page">시장</a>
   </nav>
-  <span class="divider ticker-only"></span>
-  <select id="symbol" class="ticker-only" aria-label="종목"><option>NVDA</option></select>
-  <span id="status" class="status ticker-only"></span>
-  <span id="error" class="error" hidden></span>
-  <span class="grow"></span>
-  <span id="asOf" class="status"></span>
 </div>
-<!-- 주가·봉 차트: quotechart.js가 채운다(실시간 모의투자 화면과 같은 부품) -->
-<section class="quote ticker-only" id="quote" aria-label="주가"></section>
-<nav class="tabs ticker-only" role="tablist">
-  <button role="tab" data-tab="today">오늘 판단</button>
-  <button role="tab" data-tab="strategy">전략</button>
-  <button role="tab" data-tab="chain">옵션 체인</button>
-  <span class="grow"></span>
-  <a href="/iv.html">IV 히스토리</a>
-  <a href="/review.html">복기</a>
-</nav>
-<div class="expiries ticker-only" id="expiries" aria-label="만기 선택"></div>
 
 <main>
-  <div class="ticker-only">
-  <div id="loading" class="empty">불러오는 중…</div>
-
-  <!-- 오늘 판단: 예상 변동폭 + 결론 3장 -->
-  <section class="stack" id="tab-today" hidden>
-    <div class="panel">
-      <div class="hero-head">
-        <span class="hero-num" id="movePct">–</span>
-        <span class="hero-usd" id="moveUsd"></span>
-      </div>
-      <p class="hero-sub" id="moveSub"></p>
-      <div class="range" id="range"></div>
-      <div class="facts" id="facts"></div>
-    </div>
-    <div class="answers">
-      <div class="panel answer" id="priceCard"></div>
-      <div class="panel answer" id="eventCard"></div>
-      <div class="panel answer" id="zoneCard"></div>
-    </div>
-    <div class="panel">
-      <details class="more">
-        <summary>변동성 숫자 자세히</summary>
-        <div class="cols" style="margin-top:12px">
-          <div><h2>오늘 ATM<span class="term-help" data-term="atm" tabindex="0">?</span> IV<span class="term-help" data-term="iv" tabindex="0">?</span> 추이</h2><div class="chart" id="ivChart"></div></div>
-          <div id="volRows"></div>
-        </div>
-      </details>
-    </div>
-  </section>
-
-  <!-- 전략: 전망을 먼저 고르고, 그 전망에 맞는 전략을 문장으로 비교한다 -->
-  <section class="stack" id="tab-strategy" hidden>
-    <div class="panel">
-      <h2>만기까지 주가가 어떻게 될 것 같나요?</h2>
-      <div class="views" id="views"></div>
-    </div>
-    <div class="cards" id="strategyCards"></div>
-    <div class="panel">
-      <h2 id="payoffTitle"></h2>
-      <div class="chart" id="payoff"></div>
-      <p class="sub-line">초록 = 이익, 빨강 = 손실 (1계약, 수수료 포함). 회색 띠 = 시장이 예상하는 만기 주가 범위.</p>
-    </div>
-  </section>
-
-  <section class="panel" id="tab-chain" hidden>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--call)"></span>콜<span class="term-help" data-term="call" tabindex="0">?</span></span>
-      <span><span class="swatch" style="background:var(--put)"></span>풋<span class="term-help" data-term="put" tabindex="0">?</span></span>
-      <span><span class="swatch" style="background:var(--call-bg);outline:1px solid var(--line)"></span>내가격(ITM)<span class="term-help" data-term="itm" tabindex="0">?</span></span>
-      <span>IV<span class="term-help" data-term="iv" tabindex="0">?</span>는 직접 계산값 (괄호는 데이터 소스 값)</span>
-    </div>
-    <div class="scroll"><table class="chain" id="chain"></table></div>
-  </section>
-
-  </div>
-
   <!-- 일정 화면: 종목과 상관없이 경제지표 + 관심 종목 실적을 한 달력에, 아래에 나스닥 월별 수익률 -->
-  <section class="stack schedule-only" id="page-schedule">
+  <section class="stack" id="page-schedule">
     <div class="panel">
       <div class="cal-head">
         <h2 id="calTitle">일정</h2>
@@ -263,282 +93,20 @@
 
 <footer id="footer"></footer>
 
-<!-- 봉 차트 라이브러리(TradingView Lightweight Charts, Apache-2.0. 라이선스상 차트 안 TradingView 로고는 그대로 둔다) -->
+<!-- 차트 라이브러리(TradingView Lightweight Charts, Apache-2.0. 라이선스상 차트 안 TradingView 로고는 그대로 둔다) -->
 <script src="https://unpkg.com/lightweight-charts@5.3.0/dist/lightweight-charts.standalone.production.js"></script>
 <script src="/glossary.js"></script>
-<script src="/quotechart.js"></script>
 <script>
 // ── 상태 ──
-const POLL_MS = 10000;
 const SCHEDULE_POLL_MS = 300000; // 일정은 거의 안 바뀌어 5분마다
 const SCHEDULE_FAST_POLL_MS = 30000;
-const TABS = ['today', 'strategy', 'chain'];
-const state = { page: 'ticker', schedule: null, calMonth: null, footer: {}, symbol: 'NVDA', expiry: null, tab: 'today', view: 'BIG_MOVE', strategy: null, ivTrail: [], data: null };
-let quote = null; // 맨 위 주가·봉 차트 부품(quotechart.js)
+const state = { schedule: null, calMonth: null, footer: {} };
 
 // ── 포맷 ──
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const n2 = (v) => (v == null ? '–' : Number(v).toFixed(2));
 const pct = (v, d = 1) => (v == null ? '–' : (v * 100).toFixed(d) + '%');
 const signed = (v, d = 1) => (v == null ? '–' : (v >= 0 ? '+' : '') + (v * 100).toFixed(d) + '%');
-const usd = (v) => (v == null ? '무한' : '$' + Math.round(v * 100).toLocaleString());
-const tone = (v) => (v == null ? '' : v >= 0 ? 'up' : 'down');
-const strike = (k) => (k % 1 === 0 ? String(k) : k.toFixed(1));
-const hm = (t) => String(t ?? '').replace(/(\d\d:\d\d):\d\d/, '$1');
-const md = (date) => date.slice(5).replace('-', '/');
-const weekday = (date) => '일월화수목금토'[new Date(date + 'T12:00:00').getDay()];
-const row = (k, v) => `<div class="row"><span class="k">${k}</span><span>${v}</span></div>`;
-
-// ── 데이터 ──
-async function load() {
-  const q = new URLSearchParams({ symbol: state.symbol });
-  if (state.expiry) q.set('expiry', state.expiry);
-  try {
-    const res = await fetch('/api/dashboard?' + q);
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || '서버 오류 ' + res.status);
-    render(data);
-    $('error').hidden = true;
-  } catch (e) {
-    $('error').hidden = false;
-    $('error').textContent = '데이터를 못 받았습니다: ' + e.message;
-  }
-}
-
-function render(d) {
-  if (state.data?.symbol !== d.symbol || state.data?.expiry !== d.expiry) state.ivTrail = [];
-  state.data = d;
-  state.expiry = d.expiry;
-  const iv = d.volatility.atmIvCalc ?? d.volatility.atmIvApi;
-  if (iv != null && d.marketOpen) state.ivTrail.push({ time: d.asOf, iv });
-
-  $('loading').hidden = true;
-  showTab(state.tab);
-  renderHeader(d);
-  quote.update(d);
-  renderToday(d);
-  renderStrategies(d);
-  renderChain(d);
-  state.footer.ticker = `${d.feed.name}: ${d.feed.note} 실적 일정은 ${d.earningsSource}, 경제지표 일정은 수동 입력(${d.macro.coversUntil ?? '–'}까지). 만기는 미국 동부 장 마감 기준. 조회 전용이며 투자 조언이 아닙니다.`;
-  paintFooter();
-}
-
-// ── 상단 바 ──
-function renderHeader(d) {
-  $('symbol').value = d.symbol;
-  renderExpiries(d);
-  const feedClass = d.feed.kind === 'REALTIME' ? '' : 'feed-warn';
-  $('status').innerHTML = `<span class="dot ${d.marketOpen ? 'live' : ''}"></span>${d.marketOpen ? '장중' : '장 마감'} <span class="${feedClass}">(${esc(d.feed.label)}${d.feed.kind === 'APPROXIMATE' ? term('approximate') : ''})</span>${d.stale ? ' <span class="error">연결 끊김, 마지막 값</span>' : ''}`;
-  $('asOf').textContent = `${hm(d.asOfEt)} / ${hm(d.asOfKst)}`;
-}
-
-/** 만기 목록을 가로 한 줄로. 달이 바뀌는 곳에 "12월" 같은 표시를 넣는다. */
-function renderExpiries(d) {
-  const today = new Date(d.asOf).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-  const days = (e) => Math.round((new Date(e + 'T12:00:00') - new Date(today + 'T12:00:00')) / 86400000);
-  let month = null;
-  const html = d.expirations.map((e) => {
-    const m = Number(e.slice(5, 7));
-    const label = m !== month ? `<span class="month">${m}월</span>` : '';
-    month = m;
-    const n = days(e);
-    return `${label}<button data-expiry="${e}" aria-pressed="${e === d.expiry}">${md(e)}(${weekday(e)})<small>${n <= 0 ? '오늘' : 'D-' + n}</small></button>`;
-  }).join('');
-  if ($('expiries').dataset.key !== d.expiry + '|' + d.expirations.join()) {
-    $('expiries').innerHTML = html;
-    $('expiries').dataset.key = d.expiry + '|' + d.expirations.join();
-    // 페이지는 그대로 두고 만기 줄만 옆으로 밀어 선택한 만기를 가운데에 둔다
-    const b = $('expiries').querySelector('[aria-pressed="true"]');
-    if (b) $('expiries').scrollLeft = b.offsetLeft - ($('expiries').clientWidth - b.offsetWidth) / 2;
-  }
-}
-
-// ── 오늘 판단 ──
-function renderToday(d) {
-  const m = d.expectedMove;
-  $('movePct').textContent = m ? '±' + pct(m.pct, 2) : '–';
-  $('moveUsd').textContent = m ? '±$' + n2(m.dollars) : '';
-  $('moveSub').innerHTML = m
-    ? `만기(${esc(hm(d.expiryKst))})까지 시장이 예상하는 주가 움직임${term('expectedMove')} · 85% 규칙 ±${pct(m.rule85Pct, 2)}${term('rule85')}`
-    : '체인에 ATM 호가가 없어 계산할 수 없습니다.';
-  $('range').innerHTML = m ? rangeBar(d) : '';
-
-  const straddle = d.strategies.find((s) => s.kind === 'LONG_STRADDLE');
-  const fact = (k, v, s) => `<div class="fact"><div class="k">${k}</div><div class="v">${v}</div><div class="s">${s}</div></div>`;
-  // 현재가는 맨 위 주가 영역에 있으므로, 여기서는 그 현재가 기준 예상 범위를 보여 준다
-  $('facts').innerHTML = [
-    fact('예상 범위' + term('expectedMove'), m ? `${n2(d.spot - m.dollars)} ~ ${n2(d.spot + m.dollars)}` : '–', m ? `현재가 $${n2(d.spot)} ± $${n2(m.dollars)}` : ''),
-    fact('스트래들 1세트' + term('LONG_STRADDLE'), d.straddle == null ? '–' : usd(d.straddle), d.atm ? `행사가 ${strike(d.atm.strike)} 콜+풋 1계약씩` : ''),
-    fact('본전 (수수료 포함)' + term('breakeven'), straddle ? straddle.breakevensWithFee.map((b) => n2(b.price)).join(' / ') : '–', '스트래들이 이익이 나는 경계'),
-    fact('만기까지' + term('expiry'), d.hoursToExpiry.toFixed(1) + '시간', '장중 시간만 셈 (IV는 달력 365일 기준)'),
-  ].join('');
-
-  renderPriceCard(d);
-  renderEventCard(d);
-  renderZoneCard(d);
-  renderVol(d);
-}
-
-/** 막대·차트는 화면 폭으로 그리므로, 탭이 보일 때와 창 크기가 바뀔 때 다시 그린다. */
-function redrawRange() {
-  if (state.tab === 'today' && state.data?.expectedMove) $('range').innerHTML = rangeBar(state.data);
-  quote.redraw();
-}
-
-/** 가격 축 위에 예상 범위(띠), 스트래들 본전, 현재가를 그린다. */
-function rangeBar(d) {
-  // 화면 폭 그대로 그려서 좁은 화면에서도 글자 크기가 유지되게 한다
-  const m = d.expectedMove, w = Math.max(320, $('range').clientWidth || 720), h = 96, pad = 40, y = 44;
-  const span = Math.max(m.dollars * 2.2, d.spot * 0.01);
-  const lo = d.spot - span, hi = d.spot + span;
-  const X = (p) => pad + ((p - lo) / (hi - lo)) * (w - pad * 2);
-  const straddle = d.strategies.find((s) => s.kind === 'LONG_STRADDLE');
-  const be = straddle ? straddle.breakevensWithFee.map((b) => b.price) : [];
-  const tick = (p, label, color, ty, cls = '') => `<g class="${cls}"><line x1="${X(p)}" x2="${X(p)}" y1="${y - 14}" y2="${y + 14}" stroke="${color}" stroke-width="2"/><text x="${X(p)}" y="${ty}" text-anchor="middle">${label}</text></g>`;
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="예상 변동 범위와 본전">
-    <rect x="${pad}" y="${y - 3}" width="${w - pad * 2}" height="6" rx="3" fill="var(--raised)"/>
-    <rect x="${X(d.spot - m.dollars)}" y="${y - 9}" width="${X(d.spot + m.dollars) - X(d.spot - m.dollars)}" height="18" rx="9" style="fill: var(--text); fill-opacity: .16"/>
-    ${be.map((p) => tick(p, '본전 ' + n2(p), 'var(--muted)', y + 34)).join('')}
-    ${tick(d.spot, '현재 ' + n2(d.spot), 'var(--text)', y - 22, 'now')}
-  </svg>`;
-}
-
-function renderPriceCard(d) {
-  const v = d.volatility, r = v.ivHvRatio, p = v.ivSamples ? v.ivPercentile : null;
-  const byHv = r == null ? '판단 불가' : r >= 1.3 ? '비싼 편' : r <= 0.9 ? '싼 편' : '보통';
-  const byYear = p == null ? '기록 쌓는 중' : p >= 0.8 ? '비싼 편' : p <= 0.2 ? '싼 편' : '보통';
-  $('priceCard').innerHTML = `<h2>옵션 가격</h2>
-    <div class="verdict"><span>최근 실제 움직임 대비${term('ivHvRatio')}</span><strong>${byHv}</strong></div>
-    <p>IV${term('iv')} ${pct(v.atmIvCalc ?? v.atmIvApi)} ÷ HV${term('hv')}(최근 20거래일) ${pct(v.hv20)} = ${r == null ? '–' : r.toFixed(2) + '배'}</p>
-    <div class="verdict"><span>지난 1년 대비${term('ivPercentile')}</span><strong>${byYear}</strong></div>
-    <p>1년 중 위치 ${p == null ? '–' : pct(p, 0)}</p>`;
-}
-
-/** 이번 만기 안에 있는 실적발표·경제지표. 가격이 크게 흔들릴 수 있는 날. */
-function renderEventCard(d) {
-  const items = [];
-  if (d.earnings.next && d.earnings.beforeExpiry) items.push({ date: d.earnings.next.date, label: `${d.symbol} 실적발표` });
-  d.macro.upcoming.filter((x) => x.beforeExpiry).forEach((x) => items.push({ date: x.date, label: x.label }));
-  items.sort((a, b) => a.date.localeCompare(b.date));
-  $('eventCard').innerHTML = `<h2>이번 만기 안 일정</h2>` + (items.length
-    ? `<div class="big event">${items.length}건</div><ul>${items.map((x) => `<li><strong>${md(x.date)}(${weekday(x.date)})</strong> ${esc(x.label)}</li>`).join('')}</ul>`
-    : `<div class="big">없음</div><p>만기 전까지 실적발표나 큰 경제지표가 없습니다.</p>`);
-}
-
-const ZONES = {
-  PREMIUM_SELLING: '파는 쪽이 유리 (숏 풋, 크레딧 스프레드)',
-  PREMIUM_BUYING: '사는 쪽이 유리 (스트래들, 스트랭글)',
-  EARNINGS_LONG_VOL: '실적 앞, 사는 쪽이 유리',
-  EARNINGS_OVERPRICED: '실적 앞, 파는 쪽이 유리',
-};
-
-function renderZoneCard(d) {
-  const s = d.signals;
-  const warnings = d.warnings.filter((w) => !w.startsWith('선택한 만기 안에'));
-  $('zoneCard').innerHTML = `<h2>참고 구간${term('zone')}</h2>` + (s.length
-    ? s.map((x) => `<div class="big" style="font-size:20px">${esc(ZONES[x.zone] || x.zone)}${term('premium')}</div><p>${esc(x.reason)}</p>`).join('')
-    : '<div class="big">뚜렷한 구간 없음</div><p>IV가 실제 변동성과 비슷한 수준입니다.</p>')
-    + (warnings.length ? `<ul class="warn-list">${warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : '');
-}
-
-function renderVol(d) {
-  const server = d.ivHistory.map((p) => ({ time: p.time, iv: p.iv }));
-  const last = server.length ? server[server.length - 1].time : '';
-  const points = server.concat(state.ivTrail.filter((p) => p.time > last));
-  $('ivChart').innerHTML = points.length < 2
-    ? '<div class="empty">장중에 앱을 켜 두면 1분마다 기록이 쌓이고 여기에 추이가 그려집니다.</div>'
-    : lineChart(points.map((p) => [new Date(p.time).getTime(), p.iv * 100]), { height: 200, yLabel: (y) => y.toFixed(1) + '%' });
-  const v = d.volatility, termRatio = v.termStructureRatio, rv = d.realizedVsExpected;
-  $('volRows').innerHTML = [
-    row('ATM IV (직접 계산 / 데이터 소스)', `${pct(v.atmIvCalc)} / ${pct(v.atmIvApi)}`),
-    row('최근 20일 실제 변동성(HV20)' + term('hv'), pct(v.hv20)),
-    row('전일 종가 대비 움직임 ÷ 하루 예상' + term('realizedVsExpected'), rv ? `<span class="${tone(rv.realizedPct)}">${signed(rv.realizedPct, 2)}</span> → ${Math.round(rv.ratio * 100)}%` : '–'),
-    row(`다음 만기 IV${v.nextExpiry ? ' (' + v.nextExpiry + ')' : ''}`, pct(v.nextExpiryIv)),
-    row('이번 ÷ 다음 만기 IV' + term('termStructure'), termRatio == null ? '–' : termRatio.toFixed(2) + (termRatio >= 1.05 ? ' <span class="event">단기 이벤트 프리미엄</span>' : '')),
-    row('스큐 (2칸 바깥 풋 IV − 콜 IV)' + term('skew'), v.skew == null ? '–' : (v.skew * 100).toFixed(1) + '%p'),
-  ].join('');
-}
-
-// ── 전략 ──
-const VIEW_ORDER = ['BIG_MOVE', 'UP', 'DOWN', 'NOT_DOWN', 'NOT_UP'];
-
-function renderStrategies(d) {
-  const key = (s) => s.kind + '|' + s.legs;
-  if (!d.strategies.length) { $('strategyCards').innerHTML = '<div class="panel empty">체인에 필요한 행사가가 없습니다.</div>'; return; }
-  const views = VIEW_ORDER.map((v) => d.strategies.find((s) => s.view === v)).filter(Boolean);
-  if (!views.some((s) => s.view === state.view)) state.view = views[0].view;
-  $('views').innerHTML = views.map((s) => `<button data-view="${s.view}" aria-pressed="${s.view === state.view}">${esc(s.viewLabel)}</button>`).join('');
-  $('views').querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { state.view = b.dataset.view; state.strategy = null; renderStrategies(state.data); }));
-
-  const list = d.strategies.filter((s) => s.view === state.view);
-  if (!list.some((s) => key(s) === state.strategy)) state.strategy = key(list[0]);
-  $('strategyCards').innerHTML = list.map((s) => `<button class="panel card" data-key="${esc(key(s))}" aria-pressed="${key(s) === state.strategy}">${strategyCard(s, d)}</button>`).join('');
-  $('strategyCards').querySelectorAll('.card').forEach((c) => c.addEventListener('click', () => { state.strategy = c.dataset.key; renderStrategies(state.data); }));
-
-  const s = list.find((x) => key(x) === state.strategy);
-  const m = d.expectedMove;
-  $('payoffTitle').textContent = `${s.plainName} · 만기 때 주가별 손익`;
-  $('payoff').innerHTML = lineChart(s.payoff.map((p) => [p.price, (p.profit - s.feePerShare) * 100]), {
-    height: 260, width: $('payoff').clientWidth, zero: true, markX: d.spot, band: m ? [d.spot - m.dollars, d.spot + m.dollars] : null,
-    xLabel: (x) => '$' + x.toFixed(0), yLabel: (y) => (y >= 0 ? '+$' : '−$') + Math.abs(y).toFixed(0), split: true,
-  });
-}
-
-/** 전략 하나를 "얼마 내고 / 언제 이익 / 최대 얼마" 문장으로. */
-function strategyCard(s, d) {
-  const be = s.breakevensWithFee;
-  const at = (b) => `${n2(b.price)} <span class="faint">(${signed(b.movePct)})</span>`;
-  const condition = s.view === 'BIG_MOVE' ? `${at(be[0])} 아래 또는 ${at(be[1])} 위`
-    : s.view === 'UP' || s.view === 'NOT_DOWN' ? `${at(be[0])} 위` : `${at(be[0])} 아래`;
-  const start = s.netPremium < 0 ? `<span class="up">${usd(-s.netPremium)} 받음</span>${term('credit')}` : `${usd(s.netPremium)} 냄${term('debit')}`;
-  // 행사가마다 현재가 대비 위치를 붙여, 왜 이 행사가인지 바로 보이게
-  const strikes = [...s.legs.matchAll(/(\d+(?:\.\d+)?)(C|P)/g)].map((x) => `${x[1]} ${x[2] === 'C' ? '콜' : '풋'} <span class="faint">(현재가 ${signed(Number(x[1]) / d.spot - 1)})</span>`).join(' / ');
-  return `<div class="plain">${esc(s.plainName)}</div><p class="sub-line">${esc(s.label)}${term(s.kind)} · ${strikes}</p>
-    <p class="condition">현재 $${n2(d.spot)}에서, 만기 때 주가가 ${condition}면 이익${term('breakeven')}</p>
-    <dl class="terms">
-      <div><dt>시작할 때</dt><dd>${start}</dd></div>
-      <div><dt>최대 이익</dt><dd class="up">${usd(s.maxProfit)}</dd></div>
-      <div><dt>최대 손실</dt><dd class="down">${usd(s.maxLoss)}</dd></div>
-    </dl>
-    ${compareNote(s, d)}
-    <p class="order">토스에서: ${orderText(s.legs)}</p>`;
-}
-
-/** 본전이 시장 예상 범위 안인지 밖인지. 사는 전략은 밖이면 불리, 파는 전략은 안이면 위험. */
-function compareNote(s, d) {
-  const m = d.expectedMove;
-  if (!m) return '';
-  const need = Math.min(...s.breakevensWithFee.map((b) => Math.abs(b.movePct)));
-  const range = `시장 예상 ±${pct(m.pct)}`;
-  if (s.view === 'NOT_DOWN' || s.view === 'NOT_UP') {
-    return need < m.pct
-      ? `<p class="note warn">본전(${pct(need)})이 ${range} 안쪽이라, 예상만큼만 움직여도 손실이 날 수 있음</p>`
-      : `<p class="note">본전(${pct(need)})이 ${range} 바깥이라 여유가 있는 편</p>`;
-  }
-  return need > m.pct
-    ? `<p class="note warn">${range}보다 더 움직여야(${pct(need)}) 이익</p>`
-    : `<p class="note">${range} 안에서도 이익 가능 (본전까지 ${pct(need)})</p>`;
-}
-
-/** "매수 165C @5.26 + 매도 170C @3.13" → "165 콜 1계약 매수 $5.26 · 170 콜 1계약 매도 $3.13" */
-const orderText = (legs) => legs.split(' + ').map((leg) => esc(leg).replace(/(매수|매도) (\d+(?:\.\d+)?)(C|P) @([\d.]+)/,
-  (_, side, k, t, p) => `<span class="${t === 'C' ? 'call' : 'put'}">${k} ${t === 'C' ? '콜' : '풋'}</span> 1계약 ${side} $${p}`)).join(' · ');
-
-// ── 옵션 체인 ──
-function renderChain(d) {
-  const ivCell = (l) => `${pct(l.ivCalc)} <span class="faint">(${pct(l.ivApi)})</span>`;
-  const call = (l, itm) => (l
-    ? `<td class="ba ${itm ? 'c-itm' : ''}">${n2(l.bid)}</td><td class="ba ${itm ? 'c-itm' : ''}">${n2(l.ask)}</td><td class="mid c ${itm ? 'c-itm' : ''}">${n2(l.mid)}</td><td class="${itm ? 'c-itm' : ''}">${ivCell(l)}</td><td class="${itm ? 'c-itm' : ''}">${n2(l.delta)}</td>`
-    : '<td colspan="5" class="faint">–</td>');
-  const put = (l, itm) => (l
-    ? `<td class="${itm ? 'p-itm' : ''}">${n2(l.delta)}</td><td class="${itm ? 'p-itm' : ''}">${ivCell(l)}</td><td class="mid p ${itm ? 'p-itm' : ''}">${n2(l.mid)}</td><td class="ba ${itm ? 'p-itm' : ''}">${n2(l.bid)}</td><td class="ba ${itm ? 'p-itm' : ''}">${n2(l.ask)}</td>`
-    : '<td colspan="5" class="faint">–</td>');
-  $('chain').innerHTML = `<thead>
-      <tr><th colspan="5" class="call-h" style="text-align:center">콜</th><th class="strike">행사가${term('strike')}</th><th colspan="5" class="put-h" style="text-align:center">풋</th></tr>
-      <tr><th>매수${term('bidAsk')}</th><th>매도</th><th class="call-h">중간가${term('mid')}</th><th>IV${term('iv')}</th><th>델타${term('delta')}</th><th class="strike"></th><th>델타</th><th>IV</th><th class="put-h">중간가</th><th>매수</th><th>매도</th></tr></thead>
-    <tbody>${[...d.chain].sort((a, b) => b.strike - a.strike).map((r) => `<tr class="${r.atm ? 'atm' : ''}">${call(r.call, r.strike < d.spot)}<td class="strike">${strike(r.strike)}</td>${put(r.put, r.strike > d.spot)}</tr>`).join('')}</tbody>`;
-}
 
 // ── 일정 화면 ──
 async function loadSchedule() {
@@ -651,95 +219,16 @@ function renderSeason(stats, currentMonth) {
     ${years.map((y) => `<tr><td class="left faint">${y}</td>${months.map((m) => cell(byMonth[m]?.byYear[y], m)).join('')}</tr>`).join('')}</tbody>`;
 }
 
-// ── SVG 선 그래프 (외부 라이브러리 없이). split=true면 0 위는 초록, 아래는 빨강 ──
-function lineChart(points, { height, width = 600, zero = false, markX = null, band = null, xLabel = null, yLabel, split = false }) {
-  const w = Math.max(320, width), h = height, padL = 52, padB = 22;
-  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]);
-  let y0 = Math.min(...ys), y1 = Math.max(...ys);
-  if (zero) { y0 = Math.min(y0, 0); y1 = Math.max(y1, 0); }
-  if (y0 === y1) { y0 -= 1; y1 += 1; }
-  const x0 = Math.min(...xs), x1 = Math.max(...xs);
-  const X = (x) => padL + ((x - x0) / (x1 - x0 || 1)) * (w - padL - 8);
-  const Y = (y) => 8 + (1 - (y - y0) / (y1 - y0)) * (h - 8 - padB);
-  const path = points.map((p, i) => (i ? 'L' : 'M') + X(p[0]).toFixed(1) + ',' + Y(p[1]).toFixed(1)).join('');
-  const id = 'c' + Math.random().toString(36).slice(2, 7);
-  const stroke = split ? `url(#${id})` : 'var(--text)';
-  const zeroFrac = ((Y(0) - 8) / (h - 8 - padB)).toFixed(3);
-  return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">
-    ${split ? `<defs><linearGradient id="${id}" x1="0" y1="8" x2="0" y2="${h - padB}" gradientUnits="userSpaceOnUse"><stop offset="${zeroFrac}" style="stop-color: var(--up)"/><stop offset="${zeroFrac}" style="stop-color: var(--down)"/></linearGradient></defs>` : ''}
-    ${band ? `<rect x="${X(Math.max(band[0], x0))}" y="8" width="${X(Math.min(band[1], x1)) - X(Math.max(band[0], x0))}" height="${h - 8 - padB}" style="fill: var(--text); fill-opacity: .07"/>` : ''}
-    ${zero ? `<line x1="${padL}" x2="${w - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)"/>` : ''}
-    ${markX != null ? `<line x1="${X(markX)}" x2="${X(markX)}" y1="8" y2="${h - padB}" stroke="var(--faint)" stroke-dasharray="4 4"/><text x="${X(markX)}" y="${h - 6}" text-anchor="middle">현재</text>` : ''}
-    <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2.5"/>
-    <text x="${padL - 6}" y="16" text-anchor="end">${yLabel(y1)}</text>
-    <text x="${padL - 6}" y="${h - padB}" text-anchor="end">${yLabel(y0)}</text>
-    ${xLabel ? `<text x="${padL}" y="${h - 6}">${xLabel(x0)}</text><text x="${w - 8}" y="${h - 6}" text-anchor="end">${xLabel(x1)}</text>` : ''}
-  </svg>`;
-}
-
-// ── 화면 전환(대시보드 / 일정): 주소의 #schedule·#dashboard로 정한다(모의투자 화면의 메뉴 링크도 이걸로 들어온다) ──
-function showPage(name) {
-  state.page = name === 'schedule' ? 'schedule' : 'ticker';
-  document.body.dataset.page = state.page;
-  $('pages').querySelectorAll('a[data-page]').forEach((a) => {
-    if (a.dataset.page === state.page) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
-  });
-  history.replaceState(null, '', state.page === 'schedule' ? '#schedule' : '#dashboard');
-  if (state.page === 'schedule' && !state.schedule) loadSchedule();
-  if (state.page === 'ticker') redrawRange();
-  paintFooter();
-  try { localStorage.setItem('page', state.page); } catch (e) { /* 저장 못 해도 동작에는 지장 없음 */ }
-}
-
-function paintFooter() { $('footer').textContent = state.footer[state.page] || ''; }
-
-// ── 탭 ──
-function showTab(name) {
-  state.tab = TABS.includes(name) ? name : 'today';
-  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', String(b.dataset.tab === state.tab)));
-  if (state.data) TABS.forEach((t) => { $('tab-' + t).hidden = t !== state.tab; });
-  redrawRange();
-  try { localStorage.setItem('tab', state.tab); } catch (e) { /* 저장 못 해도 동작에는 지장 없음 */ }
-}
+function paintFooter() { $('footer').textContent = state.footer.schedule || ''; }
 
 // ── 시작 ──
 async function init() {
-  try { state.tab = localStorage.getItem('tab') || 'today'; } catch (e) { /* 기본 탭 사용 */ }
-  document.querySelectorAll('.tabs button').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
-  quote = QuoteChart.mount($('quote'));
-  showTab(state.tab);
-  $('pages').addEventListener('click', (e) => {
-    const a = e.target.closest('a[data-page]');
-    if (a) { e.preventDefault(); showPage(a.dataset.page); }
-  });
   $('cal').addEventListener('click', (e) => { const c = e.target.closest('[data-macro]'); if (c) showMacroDetail(Number(c.dataset.macro)); });
   document.querySelector('.cal-head').addEventListener('click', (e) => { const b = e.target.closest('button[data-cal]'); if (b) moveCalendar(Number(b.dataset.cal)); });
-  let page = { '#schedule': 'schedule', '#dashboard': 'ticker' }[location.hash];
-  if (!page) { try { page = localStorage.getItem('page') || 'ticker'; } catch (e) { page = 'ticker'; } }
-  showPage(page);
-  try {
-    const wl = await fetch('/api/watchlist').then((r) => r.json());
-    state.symbol = wl.default;
-    $('symbol').innerHTML = wl.symbols.map((s) => `<option>${esc(s)}</option>`).join('');
-    $('symbol').value = state.symbol;
-  } catch (e) { /* 기본 종목(NVDA)으로 진행 */ }
-  $('symbol').addEventListener('change', (e) => {
-    state.symbol = e.target.value; state.expiry = null;
-    showPage('ticker');
-    quote.setSymbol(state.symbol);
-    load();
-  });
-  $('expiries').addEventListener('click', (e) => {
-    const b = e.target.closest('button[data-expiry]');
-    if (b) { state.expiry = b.dataset.expiry; load(); }
-  });
-  window.addEventListener('resize', redrawRange);
-  quote.setSymbol(state.symbol);
-  load();
-  setInterval(load, POLL_MS);
-  setInterval(() => { if (state.page === 'schedule') loadSchedule(); }, SCHEDULE_POLL_MS);
+  loadSchedule();
+  setInterval(loadSchedule, SCHEDULE_POLL_MS);
   // 발표 직전·직후에는 속보가 바로 뜨게 30초마다
-  setInterval(() => { if (state.page === 'schedule' && state.schedule?.fastPoll) loadSchedule(); }, SCHEDULE_FAST_POLL_MS);
+  setInterval(() => { if (state.schedule?.fastPoll) loadSchedule(); }, SCHEDULE_FAST_POLL_MS);
 }
 init();
 </script>

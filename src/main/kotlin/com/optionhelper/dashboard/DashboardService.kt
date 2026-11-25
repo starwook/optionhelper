@@ -16,7 +16,6 @@ import com.optionhelper.pricing.OptionType
 import com.optionhelper.pricing.PricingProperties
 import com.optionhelper.signal.SignalInput
 import com.optionhelper.signal.StrategySignals
-import com.optionhelper.strategy.StrategyMenu
 import com.optionhelper.volatility.ExpectedMove
 import com.optionhelper.volatility.RealizedVsExpected
 import com.optionhelper.volatility.VolatilityMetrics
@@ -112,14 +111,6 @@ class DashboardService(
         val hv20 = VolatilityMetrics.historicalVolatility(bars.map { it.close })
         val ivHvRatio = if (currentIv != null && hv20 != null && hv20 > 0) VolatilityMetrics.ivHvRatio(currentIv, hv20) else null
         val history = runCatching { ivHistory.atmIvs(symbol, now.minus(Duration.ofDays(365))) }.getOrDefault(emptyList())
-        val nextExpiry = expirations.firstOrNull { it.isAfter(expiry) }
-        val nextExpiryIv = nextExpiry?.let { atmIvOf(symbol, it, spot, now, r) }
-        val skew =
-            atmStrike?.let { k ->
-                val put = chain.strikeAway(k, -SKEW_STEPS)?.let { legs.of(OptionType.PUT, it)?.ivCalc }
-                val call = chain.strikeAway(k, SKEW_STEPS)?.let { legs.of(OptionType.CALL, it)?.ivCalc }
-                if (put != null && call != null) VolatilityMetrics.skew(put, call) else null
-            }
 
         val next = Earnings.nextEvent(events, today)
         val beforeExpiry = next?.reactsBy(expiry) ?: false
@@ -162,32 +153,11 @@ class DashboardService(
                     hv20 = hv20,
                     ivHvRatio = ivHvRatio,
                     ivPercentile = currentIv?.let { VolatilityMetrics.ivPercentile(history, it) },
-                    ivSamples = history.size,
-                    nextExpiry = nextExpiry,
-                    nextExpiryIv = nextExpiryIv,
-                    termStructureRatio =
-                        if (currentIv != null && nextExpiryIv != null) {
-                            VolatilityMetrics.termStructureRatio(
-                                currentIv,
-                                nextExpiryIv,
-                            )
-                        } else {
-                            null
-                        },
-                    skew = skew,
                 ),
             chain = chainRows(chain, atmStrike, legs),
-            strategies = strategies(chain, atmStrike, spot, expectedMove),
             earnings = EarningsView(next, next?.let { Earnings.daysUntil(it, today) }, beforeExpiry, stats),
             macro = macro,
             signals = signals,
-            ivHistory =
-                runCatching {
-                    ivHistory.points(
-                        symbol,
-                        today.atStartOfDay(MarketClock.NEW_YORK).toInstant(),
-                    )
-                }.getOrDefault(emptyList()),
             warnings = warnings,
         )
     }
@@ -239,21 +209,6 @@ class DashboardService(
         return source.expirations(symbol, spot).also { expirationCache[symbol] = Cached(now, it) }
     }
 
-    /** 기간 구조 비교용: 다른 만기의 ATM IV(직접 역산). 실패해도 화면은 계속 그린다. */
-    private fun atmIvOf(
-        symbol: String,
-        expiry: LocalDate,
-        spot: Double,
-        now: Instant,
-        r: Double,
-    ): Double? =
-        runCatching {
-            val chain = source.chain(symbol, expiry, spot * (1 - NARROW_RANGE), spot * (1 + NARROW_RANGE))
-            val k = chain.atmStrike(spot) ?: return null
-            val legs = LegBuilder(chain, spot, MarketClock.yearsUntil(now, expiry), r)
-            average(legs.of(OptionType.CALL, k)?.ivCalc, legs.of(OptionType.PUT, k)?.ivCalc)
-        }.getOrNull()
-
     private fun chainRows(
         chain: OptionChain,
         atm: Double?,
@@ -264,17 +219,6 @@ class DashboardService(
         return strikes.subList(maxOf(0, center - CHAIN_ROWS), minOf(strikes.size, center + CHAIN_ROWS + 1)).map { k ->
             ChainRow(k, legs.of(OptionType.CALL, k), legs.of(OptionType.PUT, k), k == atm)
         }
-    }
-
-    private fun strategies(
-        chain: OptionChain,
-        atm: Double?,
-        spot: Double,
-        move: ExpectedMove?,
-    ): List<StrategyView> {
-        if (atm == null) return emptyList()
-        val width = maxOf(MIN_PAYOFF_WIDTH, PAYOFF_WIDTH_MULTIPLE * (move?.pct ?: 0.0))
-        return StrategyMenu.build(chain, atm).map { StrategyView.of(it, spot, width) }
     }
 
     private fun <T> loadOrEmpty(
@@ -313,12 +257,8 @@ class DashboardService(
         private const val MACRO_UPCOMING = 10
         private const val MACRO_REFRESH_DAYS = 60L
         private const val CHAIN_RANGE = 0.15
-        private const val NARROW_RANGE = 0.03
         private const val CHAIN_ROWS = 10
-        private const val SKEW_STEPS = 2
         private const val MIN_PERCENTILE_SAMPLES = 100
-        private const val MIN_PAYOFF_WIDTH = 0.10
-        private const val PAYOFF_WIDTH_MULTIPLE = 2.5
     }
 }
 
