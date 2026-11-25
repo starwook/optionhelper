@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>옵션 판단</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
 <style>
   /* 화면 구조: 상단 바(종목 선택 + [종목별 | 일정] 전환)
      종목별 = 주가·차트(모든 탭 공통) → 탭 3개(오늘 판단 / 전략 / 옵션 체인) → 탭 내용
@@ -381,7 +382,7 @@ function rangeBar(d) {
   const tick = (p, label, color, ty, cls = '') => `<g class="${cls}"><line x1="${X(p)}" x2="${X(p)}" y1="${y - 14}" y2="${y + 14}" stroke="${color}" stroke-width="2"/><text x="${X(p)}" y="${ty}" text-anchor="middle">${label}</text></g>`;
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="예상 변동 범위와 본전">
     <rect x="${pad}" y="${y - 3}" width="${w - pad * 2}" height="6" rx="3" fill="var(--raised)"/>
-    <rect x="${X(d.spot - m.dollars)}" y="${y - 9}" width="${X(d.spot + m.dollars) - X(d.spot - m.dollars)}" height="18" rx="9" fill="rgba(238,241,246,.16)"/>
+    <rect x="${X(d.spot - m.dollars)}" y="${y - 9}" width="${X(d.spot + m.dollars) - X(d.spot - m.dollars)}" height="18" rx="9" style="fill: var(--text); fill-opacity: .16"/>
     ${be.map((p) => tick(p, '본전 ' + n2(p), 'var(--muted)', y + 34)).join('')}
     ${tick(d.spot, '현재 ' + n2(d.spot), 'var(--text)', y - 22, 'now')}
   </svg>`;
@@ -620,8 +621,8 @@ function lineChart(points, { height, width = 600, zero = false, markX = null, ba
   const stroke = split ? `url(#${id})` : 'var(--text)';
   const zeroFrac = ((Y(0) - 8) / (h - 8 - padB)).toFixed(3);
   return `<svg viewBox="0 0 ${w} ${h}" width="100%" role="img">
-    ${split ? `<defs><linearGradient id="${id}" x1="0" y1="8" x2="0" y2="${h - padB}" gradientUnits="userSpaceOnUse"><stop offset="${zeroFrac}" stop-color="#3ecf8e"/><stop offset="${zeroFrac}" stop-color="#f2646b"/></linearGradient></defs>` : ''}
-    ${band ? `<rect x="${X(Math.max(band[0], x0))}" y="8" width="${X(Math.min(band[1], x1)) - X(Math.max(band[0], x0))}" height="${h - 8 - padB}" fill="rgba(238,241,246,.07)"/>` : ''}
+    ${split ? `<defs><linearGradient id="${id}" x1="0" y1="8" x2="0" y2="${h - padB}" gradientUnits="userSpaceOnUse"><stop offset="${zeroFrac}" style="stop-color: var(--up)"/><stop offset="${zeroFrac}" style="stop-color: var(--down)"/></linearGradient></defs>` : ''}
+    ${band ? `<rect x="${X(Math.max(band[0], x0))}" y="8" width="${X(Math.min(band[1], x1)) - X(Math.max(band[0], x0))}" height="${h - 8 - padB}" style="fill: var(--text); fill-opacity: .07"/>` : ''}
     ${zero ? `<line x1="${padL}" x2="${w - 8}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)"/>` : ''}
     ${markX != null ? `<line x1="${X(markX)}" x2="${X(markX)}" y1="8" y2="${h - padB}" stroke="var(--faint)" stroke-dasharray="4 4"/><text x="${X(markX)}" y="${h - 6}" text-anchor="middle">현재</text>` : ''}
     <path d="${path}" fill="none" stroke="${stroke}" stroke-width="2.5"/>

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>옵션 복기</title>
 <link rel="stylesheet" href="/app.css">
+<script src="/theme.js"></script>
 <style>
   /* 색·글꼴·표 기본은 app.css */
   .call { color: var(--call); font-weight: 700; } .put { color: var(--put); font-weight: 700; }
@@ -24,9 +25,9 @@
   th, td { padding: 4px 6px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { color: var(--muted); font-weight: 500; font-size: 12px; }
   .left { text-align: left; }
-  tr.atm td { background: #22324a; }
+  tr.atm td { background: var(--call-bg); }
   .times button { display: block; width: 100%; text-align: left; background: none; color: var(--text); border: 0; border-bottom: 1px solid var(--line); padding: 6px 4px; cursor: pointer; font: inherit; }
-  .times button.selected { background: #2b2540; }
+  .times button.selected { background: var(--put-bg); }
   .scroll { overflow-x: auto; }
   .detail { display: grid; gap: 12px; }
 </style>
