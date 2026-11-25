@@ -1,5 +1,6 @@
 // 모의투자 공통: 빨리감기 연습(drill.html)과 실시간 모의투자(paper.html)가 같이 쓴다.
-// 계좌는 방문자 브라우저(localStorage)에만 있고, 서버는 옵션 값(이론가·만기 정산)만 계산한다.
+// 계좌·빨리감기 기록은 서버 DB(/api/paper/store)에 저장하고, 서버는 옵션 값(이론가·만기 정산)도 계산한다.
+// 임시: 로그인이 없어 계좌는 사이트 전체에 하나다(2026-11-26). 로그인이 생기면 사용자별로 나눈다.
 // 체결은 이론가(중간가) 한 가격, 수수료 없음 — 연습은 판단에 집중하게(2026-11-25 사용자 결정).
 //
 // 계좌   { cash, createdAt, positions: [포지션], closed: [포지션], trades: [{ t, pos, action, cash }] }
@@ -25,8 +26,25 @@ const Paper = (() => {
 
   // ── 저장 ──
   const newAccount = (createdAt) => ({ cash: START_CASH, createdAt, positions: [], closed: [], trades: [] });
-  const load = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
-  const save = (key, value) => localStorage.setItem(key, JSON.stringify(value));
+  // 시작할 때 sync()로 서버 값을 한 번 받아 두고, load/save는 그 사본을 읽고 쓰며 바뀐 값을 서버에 보낸다.
+  // 예전에 브라우저(localStorage)에만 있던 값은 서버 값이 비어 있으면(없음·빈 목록·거래 없는 계좌) 올린다.
+  // 옛 값은 지우지 않고 남겨 둔다.
+  let store = {};
+  const local = (key) => { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } };
+  const blank = (v) => v == null || (Array.isArray(v) && !v.length) || v.trades?.length === 0;
+  const put = (key, value) => fetch(`/api/paper/store/${key}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value ?? null), keepalive: true })
+    .then((res) => { if (!res.ok) throw new Error(res.statusText); })
+    .catch((err) => notice('서버에 저장하지 못했습니다: ' + err.message));
+  async function sync(keys) {
+    const res = await fetch('/api/paper/store');
+    if (!res.ok) throw new Error('저장된 계좌를 불러오지 못했습니다');
+    store = await res.json();
+    for (const key of keys) {
+      if (blank(store[key]) && !blank(local(key))) { store[key] = local(key); await put(key, store[key]); }
+    }
+  }
+  const load = (key) => structuredClone(store[key] ?? null);
+  const save = (key, value) => { store[key] = structuredClone(value ?? null); return put(key, value); };
 
   // ── 계산 ──
   const intrinsic = (type, s, k) => Math.max(0, type === 'CALL' ? s - k : k - s);
@@ -361,7 +379,7 @@ const Paper = (() => {
   return {
     ask, notice,
     START_CASH, MULT, esc, money, signedMoney, pct, signedPct, tone, strikeText, legText, etDate,
-    newAccount, load, save, preview, open, close, positionValue, equity, buyingPower, reserved, basis,
+    newAccount, sync, load, save, preview, open, close, positionValue, equity, buyingPower, reserved, basis,
     analyze, candidates, rate, ideaCards, viewPills, tilesHtml, criteriaTiles, eventsHtml, zonesHtml, marksFor, chainHtml, ticketHtml, ticketClick,
     positionsHtml, closedHtml, equityChart,
   };
