@@ -1,11 +1,14 @@
 package com.optionhelper.paper
 
+import com.fasterxml.jackson.databind.JsonNode
 import com.optionhelper.dashboard.ErrorResponse
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -13,13 +16,23 @@ import org.springframework.web.bind.annotation.RestController
 
 data class NewDrillResponse(val game: String)
 
-/** 모의투자 가격 API. 계좌는 브라우저에 있고 여기서는 값만 계산한다. */
+/** 모의투자 API. 가격 계산과, 화면이 만든 계좌·빨리감기 기록 저장(PaperStoreService). */
 @RestController
 @RequestMapping("/api/paper")
 class PaperController(
     private val paperService: PaperService,
     private val drillService: DrillService,
+    private val paperStoreService: PaperStoreService,
 ) {
+    @GetMapping("/store")
+    fun store() = paperStoreService.all()
+
+    @PutMapping("/store/{key}")
+    fun saveStore(
+        @PathVariable key: String,
+        @RequestBody(required = false) value: JsonNode?,
+    ) = paperStoreService.put(key, value)
+
     @PostMapping("/marks")
     fun marks(
         @RequestBody request: MarksRequest,
