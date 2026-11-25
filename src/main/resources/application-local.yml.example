@@ -9,3 +9,6 @@ optionhelper:
     source: alphavantage
     alpha-vantage:
       api-key: your-alpha-vantage-key
+  # 앱 공용 Claude API 키(경제지표 속보 등). 없으면 속보 기능만 꺼진다
+  antropic:
+    api-key: your-anthropic-api-key

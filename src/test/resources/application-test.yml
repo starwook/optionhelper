@@ -13,5 +13,12 @@ optionhelper:
   earnings:
     source: fake
     background-refresh: false
+  macro-actuals:
+    source: fake
+    background-refresh: false
+  macro-flash:
+    enabled: false
+  claude:
+    api-key: ""
   recorder:
     enabled: false

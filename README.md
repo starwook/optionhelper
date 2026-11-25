@@ -25,6 +25,10 @@
 | `optionhelper.market-data.hyperliquid.dex` | `xyz` | Hyperliquid 배포자(종목 심볼 앞에 붙는 `xyz:`) |
 | `optionhelper.earnings.source` | `fake` / `alphavantage` | 실적발표일 |
 | `optionhelper.earnings.background-refresh` | `true` | 관심 종목 실적 일정을 백그라운드로 주 1회 갱신 |
+| `optionhelper.macro-actuals.source` | `bls`(기본, 키 없음) / `fake` | 경제지표 발표 결과(CPI·PPI·고용보고서). 평소 6시간, 발표 후 2시간은 10분마다 받아 DB에 기록 |
+| `optionhelper.claude.model` | `claude-haiku-5-5` | 앱 공용 Claude API 모델. 키는 `application-local.yml`의 `optionhelper.antropic.api-key` |
+| `optionhelper.claude.monthly-call-limit` | `10` | 앱 전체 Claude 월 호출 상한(1회 약 0.02달러) |
+| `optionhelper.macro-flash.enabled` | `true` | 경제지표 발표 5·15·40분 뒤 Claude(웹 검색) 속보(실제값 + 언론 보도 예상치). Claude 키가 없으면 꺼짐 |
 | `optionhelper.recorder.symbols` | `NVDA` | 장중 1분마다 체인을 저장할 종목(IV 퍼센타일·추이·복기용) |
 | `optionhelper.pricing.risk-free-rate` | `0.04` | 블랙-숄즈 무위험금리 |
 
@@ -58,7 +62,7 @@
 
 ## 일정 화면 (상단 "일정" 버튼)
 
-종목과 상관없는 월 달력. 한 날짜 칸에 경제지표(FOMC·CPI·PPI·고용·PCE)와 관심 종목 실적발표를 같이 보여 준다. 날짜·시각은 모두 한국 시간(장 마감 후 실적은 다음 날 "06:00 이후 발표", 장 시작 전은 "23:30 전 발표", 서머타임이면 1시간 빠름). 아래에 나스닥100 월별 수익률(Hyperliquid `xyz:XYZ100` 선물 일봉 기준)(평균·상승 확률·연도별, 이번 달 강조).
+종목과 상관없는 월 달력. 한 날짜 칸에 경제지표(FOMC·CPI·PPI·고용·PCE)와 관심 종목 실적발표를 같이 보여 준다. 날짜·시각은 모두 한국 시간(장 마감 후 실적은 다음 날 "06:00 이후 발표", 장 시작 전은 "23:30 전 발표", 서머타임이면 1시간 빠름). 지난 CPI·PPI·고용보고서 칸에는 BLS 공식 API로 받은 발표 결과(전월비, 고용 증감·실업률)를 같이 적는다(발표 다음 날쯤 반영). 발표 직후에는 Claude API가 웹 검색으로 뽑은 "⚡속보"(점선, 공식 확인 전)와 예상 대비 ▲▼를 먼저 보여 주고, 칸을 누르면 달력 아래에 지표별 실제·예상·판정 카드와 출처가 나온다. 아래에 나스닥100 월별 수익률(Hyperliquid `xyz:XYZ100` 선물 일봉 기준)(평균·상승 확률·연도별, 이번 달 강조).
 
 ## 복기 화면 (`/review.html`, 상단 "복기" 링크)
 
